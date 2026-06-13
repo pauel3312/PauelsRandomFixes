@@ -26,7 +26,7 @@ internal class ThrottleRelativeVelocity: ConfigurableFix
         if (PlayerSettings.throttleUseRelative)
         {
             // CHANGES HERE
-            throttleInput = __instance.simulatedThrottle + throttleInput * _inputSensitivity.Value;
+            throttleInput = Mathf.Clamp(__instance.simulatedThrottle + throttleInput * _inputSensitivity.Value,-1, 1);
             prevThrottleInput = __instance.simulatedThrottle;
             // End of changes
         }
@@ -41,7 +41,7 @@ internal class ThrottleRelativeVelocity: ConfigurableFix
         if (throttleInputDiff > 0.0 && throttleInputDiff < 0.5)
             __instance.simulatedThrottle =
                 throttleInput; // if throttle has linear movement (moved less than half the axis in a frame)
-        else if (Mathf.Abs(throttleInput) > 0.5) // if throttle is button or relative and not zero
+        else if (Mathf.Abs(throttleInput) > 0.5) // if throttle is binary and not zero
             // force slow throttle on binary input.
             __instance.simulatedThrottle += Mathf.Clamp(throttleInput - __instance.simulatedThrottle, -Time.deltaTime,
                 Time.deltaTime);
@@ -55,7 +55,7 @@ internal class ThrottleRelativeVelocity: ConfigurableFix
             customAxisOutput += Mathf.Clamp(customAxisInput - customAxisOutput, -Time.deltaTime, Time.deltaTime);
         if (!Mathf.Approximately(__instance.controlInputs.customAxis1, customAxisOutput))
             __instance.controlInputs.customAxis1 = Mathf.Clamp01(customAxisOutput);
-        if (PlayerSettings.throttleUseNegative)
+        if (PlayerSettings.throttleUseNegative || PlayerSettings.throttleUseRelative)
             simThrottle = (float)(0.5 * (simThrottle + 1.0));
         if (__instance.collective && PlayerSettings.invertCollective)
             simThrottle = 1f - simThrottle;
