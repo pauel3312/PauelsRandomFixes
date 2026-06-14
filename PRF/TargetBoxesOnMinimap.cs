@@ -11,6 +11,6 @@ internal class TargetBoxesOnMinimap(ConfigFile config): ConfigurableFix(config)
     [HarmonyPatch(nameof(TargetMarker.Show))]
     internal static void ShowPostfix(ref TargetMarker __instance, bool value)
     {
-        __instance.markerImg.enabled = true;
+        __instance.markerImg.enabled = MapOptions.i.showTargetInfo;
     }
 }
