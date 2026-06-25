@@ -8,7 +8,7 @@
         <PackageId>Pauel3312.PRF</PackageId>
         <Title>PauelsRandomNuclearOptionFixes</Title>
         <Description>A mod containing all the bugfixing I do for shockfront.</Description>
-        <Version>0.33.4.1</Version>
+        <Version>0.33.4.2</Version>
         <Authors>Pauel3312</Authors>
         <PackageTags>nuclear;option;bepinex</PackageTags>
 
@@ -54,6 +54,7 @@
             <Aliases>global,NuclearOption</Aliases>
         </Reference>
         <Reference Include="Assembly-CSharp-firstpass" HintPath="$(NUCLEAR_OPTION_SERVER_REFERENCES)\Assembly-CSharp-firstpass.dll" Private="False" Publicize="True"/>
+        <Reference Include="Unity.TextMeshPro" HintPath="$(NUCLEAR_OPTION_SERVER_REFERENCES)\Unity.TextMeshPro.dll" Private="False" Publicize="True"/>
         <Reference Include="UnityEngine" HintPath="$(NUCLEAR_OPTION_SERVER_REFERENCES)\UnityEngine.dll" Private="False" Publicize="True"/>
         <Reference Include="UnityEngine.CoreModule" HintPath="$(NUCLEAR_OPTION_SERVER_REFERENCES)\UnityEngine.CoreModule.dll" Private="False" Publicize="True"/>
         <Reference Include="UnityEngine.AudioModule" HintPath="$(NUCLEAR_OPTION_SERVER_REFERENCES)\UnityEngine.AudioModule.dll" Private="False" Publicize="True"/>
