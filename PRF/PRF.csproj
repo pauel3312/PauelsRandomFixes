@@ -1,6 +1,6 @@
 <Project Sdk="Microsoft.NET.Sdk">
     <PropertyGroup>
-        <NUCLEAR_OPTION_SERVER_REFERENCES>/home/pauel/.local/share/Steam/steamapps/common/Nuclear Option/NuclearOption_Data/Managed</NUCLEAR_OPTION_SERVER_REFERENCES>
+        <NUCLEAR_OPTION_SERVER_REFERENCES>$(HOME)/.local/share/Steam/steamapps/common/Nuclear Option/NuclearOption_Data/Managed</NUCLEAR_OPTION_SERVER_REFERENCES>
         <!-- General Project Information -->
         <TargetFramework>net48</TargetFramework>
         <AssemblyName>Pauel3312.PauelsRandomFixes</AssemblyName>
@@ -8,7 +8,7 @@
         <PackageId>Pauel3312.PRF</PackageId>
         <Title>PauelsRandomNuclearOptionFixes</Title>
         <Description>A mod containing all the bugfixing I do for shockfront.</Description>
-        <Version>0.33.4.1</Version>
+        <Version>0.33.4.2</Version>
         <Authors>Pauel3312</Authors>
         <PackageTags>nuclear;option;bepinex</PackageTags>
 
