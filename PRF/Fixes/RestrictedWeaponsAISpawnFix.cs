@@ -3,7 +3,7 @@ using BepInEx.Configuration;
 using HarmonyLib;
 using NuclearOption.Networking;
 
-namespace PRF;
+namespace PRF.Fixes;
 
 [Fix]
 [HarmonyPatch]

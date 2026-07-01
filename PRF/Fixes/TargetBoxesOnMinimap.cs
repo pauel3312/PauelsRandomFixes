@@ -1,7 +1,7 @@
 using BepInEx.Configuration;
 using HarmonyLib;
 
-namespace PRF;
+namespace PRF.Fixes;
 
 [Fix]
 [HarmonyPatch(typeof(TargetMarker))]

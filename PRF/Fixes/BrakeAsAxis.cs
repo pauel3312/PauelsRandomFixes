@@ -1,7 +1,7 @@
 using BepInEx.Configuration;
 using HarmonyLib;
 
-namespace PRF;
+namespace PRF.Fixes;
 
 [Fix]
 [HarmonyPatch]
@@ -9,7 +9,8 @@ internal class BrakeAsAxis: ConfigurableFix
 {
     public BrakeAsAxis(ConfigFile config) : base(config)
     {
-        _useBrakesNegativeRegion = config.Bind(GetType().Name, "UseBrakesNegativeRegion", false, "Use negative region of input for the brake axis");
+        _useBrakesNegativeRegion = config.Bind(GetType().Name, "UseBrakesNegativeRegion", false,
+            "Use negative region of input for the brake axis");
     }
 
     private static ConfigEntry<bool> _useBrakesNegativeRegion = null!;

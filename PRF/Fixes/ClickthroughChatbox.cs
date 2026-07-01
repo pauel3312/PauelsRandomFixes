@@ -2,7 +2,7 @@ using BepInEx.Configuration;
 using HarmonyLib;
 using UnityEngine.UI;
 
-namespace PRF;
+namespace PRF.Fixes;
 
 [Fix]
 [HarmonyPatch(typeof(MessageUI))]
