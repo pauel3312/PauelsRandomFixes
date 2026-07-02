@@ -388,6 +388,130 @@ internal class FPSBoundMouseFix(ConfigFile config) : ConfigurableFix(config)
   }
   */
 
+  public static Vector3 GlobalJoystickPos;
+
+  [HarmonyPatch(typeof(PilotPlayerState), nameof(PilotPlayerState.UpdateState))]
+  [HarmonyPrefix]
+  public static bool TempUpdateStateReplace(Pilot pilot, ref PilotPlayerState __instance)
+  {
+    if (!((UnityEngine.Object) pilot.aircraft != (UnityEngine.Object) null))
+      return false;
+    __instance.PlayerControls();
+    // __instance.PlayerAxisControls();
+
+    /*
+    if (UpdateVector == Vector3.zero)
+    {
+      UpdateVector = SceneSingleton<FlightHud>.i.virtualJoystickPos.transform.localPosition;
+      PRF.Logger.LogInfo("UpdateVector is empty, setting it to initial position");
+    }
+    else
+    {
+      float num = PlayerSettings.virtualJoystickInvertPitch ? -1f : 1f;
+      UpdateVector = Vector3.ClampMagnitude(UpdateVector + (float) ((double) PlayerSettings.virtualJoystickSensitivity / 5) * new Vector3(GameManager.playerInput.GetAxis("Pan View"), -num * GameManager.playerInput.GetAxis("Tilt View"), 0.0f), 150f);
+      PRF.Logger.LogInfo("UpdateVector is " + UpdateVector);
+    }
+    */
+
+    if (PlayerSettings.virtualJoystickEnabled && !__instance.player.GetButton("Free Look"))
+    {
+      float num = PlayerSettings.virtualJoystickInvertPitch ? -1f : 1f;
+      Vector3 a = SceneSingleton<FlightHud>.i.virtualJoystickPos.transform.localPosition;
+      if (CameraStateManager.cameraMode == CameraMode.cockpit)
+        a = Vector3.ClampMagnitude(GlobalJoystickPos + (float) ((double) PlayerSettings.virtualJoystickSensitivity * 0.5f) * new Vector3(GameManager.playerInput.GetAxis("Pan View"), -num * GameManager.playerInput.GetAxis("Tilt View"), 0.0f), 150f);
+      GlobalJoystickPos = Vector3.Lerp(a, Vector3.zero, PlayerSettings.virtualJoystickCentering * 2f * Time.deltaTime);
+    }
+    
+    // PRF.Logger.LogInfo("UpdateVector updated in Update to " + GlobalJoystickPos);
+    
+    
+    return false;
+  }
+  
+  [HarmonyPatch(typeof(PilotPlayerState), nameof(PilotPlayerState.FixedUpdateState))]
+  [HarmonyPrefix]
+  public static bool TempFixedUpdateStateReplace(Pilot pilot, ref PilotPlayerState __instance)
+  {
+    using (PilotPlayerState.fixedUpdateStateMarker.Auto())
+    {
+      __instance.pilotStrength = __instance.gloc.SimulateGLOC(pilot.gForce);
+      if ((UnityEngine.Object) pilot.aircraft == (UnityEngine.Object) null)
+        return false;
+      __instance.PlayerAxisControls();
+      pilot.aircraft.FilterInputs();
+
+      return false;
+    }
+  }
+  
+  [HarmonyPatch(typeof(PilotPlayerState), nameof(PilotPlayerState.PlayerAxisControls))]
+  [HarmonyPrefix]
+  public static bool TempPlayerAxisControlsReplace(ref PilotPlayerState __instance)
+  {
+    if (__instance.pilot.aircraft.cockpit.IsDetached())
+      return false;
+    // float num = PlayerSettings.virtualJoystickInvertPitch ? -1f : 1f;
+    if ((!PlayerSettings.virtualJoystickEnabled ? 0 : (DynamicMap.mapMaximized ? 1 : (RadialMenuMain.IsInUse() ? 1 : 0))) != 0)
+    {
+      __instance.controlInputs.pitch = Mathf.Clamp(__instance.pitchInput, -1f, 1f);
+      __instance.controlInputs.roll = Mathf.Clamp(__instance.rollInput, -1f, 1f);
+      __instance.controlInputs.yaw = Mathf.Clamp(__instance.yawInput, -1f, 1f);
+    }
+    else if ((double) __instance.pilotStrength < 0.2)
+    {
+      __instance.controlInputs.pitch = 0.0f;
+      __instance.controlInputs.roll = 0.0f;
+      __instance.controlInputs.yaw = 0.0f;
+    }
+    else
+    {
+      __instance.pitchInput = 0.0f;
+      __instance.rollInput = 0.0f;
+      __instance.yawInput = 0.0f;
+      if (PlayerSettings.virtualJoystickEnabled)
+      {
+        if (!SceneSingleton<FlightHud>.i.virtualJoystickPos.gameObject.activeSelf)
+          SceneSingleton<FlightHud>.i.virtualJoystickPos.gameObject.SetActive(true);
+        if (!__instance.player.GetButton("Free Look"))
+        {
+          // Vector3 a = SceneSingleton<FlightHud>.i.virtualJoystickPos.transform.localPosition;
+          /*
+          if (CameraStateManager.cameraMode == CameraMode.cockpit)
+          {
+            //  a = Vector3.ClampMagnitude(a + (float) ((double) PlayerSettings.virtualJoystickSensitivity * (double) Mathf.Min(Time.unscaledDeltaTime, 0.1f) * 30.0) * new Vector3(GameManager.playerInput.GetAxis("Pan View"), -num * GameManager.playerInput.GetAxis("Tilt View"), 0.0f), 150f);
+            a = GlobalJoystickPos;
+            PRF.Logger.LogInfo("PlayerAxisControls updating a vector from UpdateVector inside FixedUpdate to " + a);
+          }
+          */
+          // Vector3 joystickPos = Vector3.Lerp(a, Vector3.zero, PlayerSettings.virtualJoystickCentering * 2f * Time.deltaTime);
+          SceneSingleton<FlightHud>.i.SetVirtualJoystick(GlobalJoystickPos);
+        }
+        if (!DynamicMap.mapMaximized && !RadialMenuMain.IsInUse() && !Leaderboard.IsOpen())
+        {
+          __instance.pitchInput = (float) (-(double) SceneSingleton<FlightHud>.i.virtualJoystickPos.transform.localPosition.y / 150.0);
+          __instance.rollInput = SceneSingleton<FlightHud>.i.virtualJoystickPos.transform.localPosition.x / 150f;
+          if ((double) __instance.pilot.aircraft.radarAlt < (double) __instance.pilot.aircraft.definition.spawnOffset.y + 1.0)
+            __instance.yawInput = SceneSingleton<FlightHud>.i.virtualJoystickPos.transform.localPosition.x / 150f;
+        }
+      }
+      else if (SceneSingleton<FlightHud>.i.virtualJoystickPos.gameObject.activeSelf)
+        SceneSingleton<FlightHud>.i.virtualJoystickPos.gameObject.SetActive(false);
+      __instance.pitchInput += __instance.player.GetAxis("Pitch");
+      __instance.rollInput += __instance.player.GetAxis("Roll");
+      __instance.yawInput += __instance.player.GetAxis("Yaw");
+      __instance.controlInputs.pitch = Mathf.Clamp(__instance.pitchInput, -1f, 1f);
+      __instance.controlInputs.roll = Mathf.Clamp(__instance.rollInput, -1f, 1f);
+      __instance.controlInputs.yaw = Mathf.Clamp(__instance.yawInput, -1f, 1f);
+      if (!__instance.pilot.aircraft.IsAutoHoverEnabled())
+        return false;
+      __instance.PlayerThrottleAxis1Controls();
+    }
+
+    return false;
+  }
+  
+  
+  /* Previous try with limiting max 1 action per frame in case FPS < PhysicsFPS
   private static int _lastProcessedFrame = -1;
   
   [HarmonyPatch(typeof(PilotPlayerState), nameof(PilotPlayerState.PlayerAxisControls))]
@@ -473,4 +597,7 @@ internal class FPSBoundMouseFix(ConfigFile config) : ConfigurableFix(config)
 
     return false;
   }
+  */
+  
+  
 }
