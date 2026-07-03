@@ -395,7 +395,7 @@ internal class FPSBoundMouseFix : ConfigurableFix
     // Moved function setting virtual joystick's joystickPos value to UpdateState to not double up deltaTime from running it in FixedUpdateState
     [HarmonyPatch(typeof(PilotPlayerState), nameof(PilotPlayerState.UpdateState))]
     [HarmonyPrefix]
-    public static bool TempUpdateStateReplace(Pilot pilot, ref PilotPlayerState __instance)
+    public static bool UpdateStateReplace(Pilot pilot, ref PilotPlayerState __instance)
     {
         if (!((UnityEngine.Object) pilot.aircraft != (UnityEngine.Object) null))
             return false;
@@ -428,7 +428,7 @@ internal class FPSBoundMouseFix : ConfigurableFix
     // PlayerAxisControls no longer sets its joystickPos and instead gets that data via _globalJoystickPos from UpdateState
     [HarmonyPatch(typeof(PilotPlayerState), nameof(PilotPlayerState.PlayerAxisControls))]
     [HarmonyPrefix]
-    public static bool TempPlayerAxisControlsReplace(ref PilotPlayerState __instance)
+    public static bool PlayerAxisControlsReplace(ref PilotPlayerState __instance)
     {
         if (__instance.pilot.aircraft.cockpit.IsDetached())
             return false;
