@@ -1,8 +1,8 @@
 using BepInEx.Configuration;
 using HarmonyLib;
 using UnityEngine;
-using System;
 using System.Collections.Generic;
+using System.Diagnostics.CodeAnalysis;
 using System.Reflection.Emit;
 
 
@@ -10,594 +10,499 @@ namespace PRF.Fixes;
 
 [Fix]
 [HarmonyPatch]
-internal class FPSBoundMouseFix(ConfigFile config) : ConfigurableFix(config)
+[SuppressMessage("ReSharper", "InconsistentNaming")]
+internal class FPSBoundMouseFix : ConfigurableFix
 {
-  private static void LogMatching(int pos, string matchField, string instruction)
-  {
-    PRF.Logger.LogDebug($"Found match for {matchField} at position {pos}");
-    PRF.Logger.LogDebug(instruction);
-  }
+    private static ConfigEntry<float> _cockpitFreelookSensitivity = null!;
+    private static ConfigEntry<float> _mapPanSensitivity = null!;
+    private static ConfigEntry<float> _orbitCamSensitivity = null!;
+    private static ConfigEntry<float> _orbitZoomSensitivity = null!;
+    private static ConfigEntry<float> _TVCamSensitivity = null!;
+    private static ConfigEntry<float> _virtualJoystickCenteringForce = null!;
+    private static ConfigEntry<float> _virtualJoystickSensitivityX = null!;
+    private static ConfigEntry<float> _virtualJoystickSensitivityY = null!;
+
+    protected override bool DefaultEnabled => false;
+
+    protected override string Description =>
+        $"if true, {GetType().Name} is enabled\nFixes mouse virtual joystick and freelook sensitivities being dependent"
+        + "on FPS. Since the game uses GetAxis for both mouse and controller axes, with this enabled behaviour will"
+        + "be flipped for freelook with controllers, and their sensitivity will be FPS dependent.";
+
+    public FPSBoundMouseFix(ConfigFile config) : base(config)
+    {
+        _cockpitFreelookSensitivity = config.Bind(GetType().Name, "Cockpit Freelook Sensitivity", 1f,
+            new ConfigDescription("Cockpit freelook sensitivity",
+                new AcceptableValueRange<float>(0f, 100f)));
+        _mapPanSensitivity = config.Bind(GetType().Name, "Map Panning Sensitivity", 1f,
+            new ConfigDescription("Map panning sensitivity",
+                new AcceptableValueRange<float>(0f, 100f)));
+        _orbitCamSensitivity = config.Bind(GetType().Name, "Orbit Cam Sensitivity", 1f,
+            new ConfigDescription("Orbit cam sensitivity",
+                new AcceptableValueRange<float>(0f, 100f)));
+        _orbitZoomSensitivity = config.Bind(GetType().Name, "Orbit Cam Zoom Sensitivity", 1f,
+            new ConfigDescription("Orbit cam zoom sensitivity",
+                new AcceptableValueRange<float>(0f, 100f)));
+        _TVCamSensitivity = config.Bind(GetType().Name, "TV (Flyby) Cam Sensitivity", 1f,
+            new ConfigDescription("TV (Flyby) cam sensitivity",
+                new AcceptableValueRange<float>(0f, 100f)));
+        _virtualJoystickCenteringForce = config.Bind(GetType().Name, "Virtual Joystick Centering Sensitivity", 1f,
+            new ConfigDescription("Virtual joystick centering force sensitivity - stacks with vanilla setting, here to give extra control",
+                new AcceptableValueRange<float>(0f, 100f)));
+        _virtualJoystickSensitivityX = config.Bind(GetType().Name, "Virtual Joystick X-Sensitivity", 1f,
+            new ConfigDescription(
+                "Virtual joystick X-sensitivity - stacks with vanilla setting, here to give extra control",
+                new AcceptableValueRange<float>(0f, 100f)));
+        _virtualJoystickSensitivityY = config.Bind(GetType().Name, "Virtual Joystick Y-Sensitivity", 1f,
+            new ConfigDescription(
+                "Virtual joystick Y-sensitivity - stacks with vanilla setting, here to give extra control",
+                new AcceptableValueRange<float>(0f, 100f)));
+    }
+
+    public static float GetCockpitFreelookSensitivity()
+    {
+        return _cockpitFreelookSensitivity.Value * 0.5f;
+    }
+    public static float GetMapPanSensitivity()
+    {
+        return _mapPanSensitivity.Value * 25f;
+    }
+    public static float GetOrbitCamSensitivity()
+    {
+        return _orbitCamSensitivity.Value * 0.5f;
+    }
+    public static float GetOrbitZoomSensitivity()
+    {
+        return _orbitZoomSensitivity.Value;
+    }
+    public static float GetTVCamSensitivity()
+    {
+        return _TVCamSensitivity.Value * 0.5f;
+    }
+    private static float GetVirtualJoystickCenteringForce()
+    {
+        return _virtualJoystickCenteringForce.Value * 4f;
+    }
+    private static float GetVirtualJoystickSensitivityX()
+    {
+        return _virtualJoystickSensitivityX.Value * 0.5f;
+    }
+    private static float GetVirtualJoystickSensitivityY()
+    {
+        return _virtualJoystickSensitivityY.Value * 0.5f;
+    }
   
-  // Cockpit freelook (with VJ on + Freelook button, and with regular Freelook)
-  [HarmonyPatch(typeof(CameraCockpitState), nameof(CameraCockpitState.UpdateState))]
-  [HarmonyTranspiler]
-  internal static IEnumerable<CodeInstruction> Cockpit_FPSBoundFix(IEnumerable<CodeInstruction> instructions)
-  {
-    var matcher = new CodeMatcher(instructions);
+    // Cockpit freelook (with VJ on + Freelook button, and with regular Freelook)
+    [HarmonyPatch(typeof(CameraCockpitState), nameof(CameraCockpitState.UpdateState))]
+    [HarmonyTranspiler]
+    internal static IEnumerable<CodeInstruction> Cockpit_FPSBoundFix(IEnumerable<CodeInstruction> instructions)
+    {
+        var matcher = new CodeMatcher(instructions);
     
-    var viewSensitivityField = AccessTools.Field(typeof(PlayerSettings), nameof(PlayerSettings.viewSensitivity));
-    var unscaledDeltaTimeGetter = AccessTools.PropertyGetter(typeof(Time), nameof(Time.unscaledDeltaTime));
+        var viewSensitivityField = AccessTools.Field(typeof(PlayerSettings), nameof(PlayerSettings.viewSensitivity));
+        var unscaledDeltaTimeGetter = AccessTools.PropertyGetter(typeof(Time), nameof(Time.unscaledDeltaTime));
 
-    while (true)
-    {
-      matcher.MatchForward(
-        false,
-        new CodeMatch(OpCodes.Ldc_R4),
-        new CodeMatch(OpCodes.Mul),
-        new CodeMatch(OpCodes.Ldsfld, viewSensitivityField),
-        new CodeMatch(OpCodes.Mul),
-        new CodeMatch(OpCodes.Call, unscaledDeltaTimeGetter)
-      );
-
-      if (!matcher.IsValid)
-        break;
-
-      LogMatching(matcher.Pos,"CameraCockpitState", matcher.Instruction.ToString());
-      
-      matcher.SetInstructionAndAdvance(
-        new CodeInstruction(OpCodes.Ldc_R4, 1f) // 120 => 1
-      );
-      matcher.Advance(3);
-      matcher.SetInstructionAndAdvance(
-        new CodeInstruction(OpCodes.Ldc_R4, 1f) // unscaledDeltaTime => 1
-      );
-    }
-
-    return matcher.InstructionEnumeration();
-  }
-
-  
-  // Orbit 3rd person camera pan/tilt and zoom
-  [HarmonyPatch(typeof(CameraOrbitState), nameof(CameraOrbitState.Inputs))]
-  [HarmonyTranspiler]
-  internal static IEnumerable<CodeInstruction> OrbitCamera_FPSBoundFix(IEnumerable<CodeInstruction> instructions)
-  {
-    var matcher = new CodeMatcher(instructions);
-    
-    var viewSensitivityField = AccessTools.Field(typeof(PlayerSettings), nameof(PlayerSettings.viewSensitivity));
-    var unscaledDeltaTimeGetter = AccessTools.PropertyGetter(typeof(Time), nameof(Time.unscaledDeltaTime));
-    
-    while (true)
-    {
-      matcher.MatchForward(
-        false,
-        new CodeMatch(OpCodes.Ldc_R4),
-        new CodeMatch(OpCodes.Mul),
-        new CodeMatch(OpCodes.Ldsfld, viewSensitivityField),
-        new CodeMatch(OpCodes.Mul),
-        new CodeMatch(OpCodes.Call, unscaledDeltaTimeGetter)
-      );
-      
-      if (!matcher.IsValid)
-        break;
-      
-      LogMatching(matcher.Pos,"CameraOrbitState - Pan and Tilt", matcher.Instruction.ToString());
-
-      matcher.SetInstructionAndAdvance(
-        new CodeInstruction(OpCodes.Ldc_R4, 1f) // 90 => 1
-      );
-      matcher.Advance(3);
-      matcher.SetInstructionAndAdvance(
-        new CodeInstruction(OpCodes.Ldc_R4, 1f) // unscaledDeltaTime => 1
-      );
-    }
-
-    matcher = new CodeMatcher(matcher.InstructionEnumeration());
-
-    while (true)
-    {
-      matcher.MatchForward(
-        false,
-        new CodeMatch(OpCodes.Ldstr, "Zoom View"),
-        new CodeMatch(OpCodes.Callvirt),
-        new CodeMatch(OpCodes.Ldc_R4),
-        new CodeMatch(OpCodes.Mul),
-        new CodeMatch(OpCodes.Call, unscaledDeltaTimeGetter)
-        );
-
-      if (!matcher.IsValid)
-        break;
-      
-      LogMatching(matcher.Pos,"CameraOrbitState - Zoom", matcher.Instruction.ToString());
-
-      matcher.Advance(2);
-      matcher.SetInstructionAndAdvance(
-        new CodeInstruction(OpCodes.Ldc_R4, 1f) // 60 => 1
-        );
-      matcher.Advance(1);
-      matcher.SetInstructionAndAdvance(
-        new CodeInstruction(OpCodes.Ldc_R4, 1f) // unscaledDeltaTime => 1
-      );
-    }
-
-    return matcher.InstructionEnumeration();
-  }
-  
-  
-  // TV / Cinema camera
-  [HarmonyPatch(typeof(CameraTVState), nameof(CameraTVState.UpdateState))]
-  [HarmonyTranspiler]
-  internal static IEnumerable<CodeInstruction> TVCamera_FPSBoundFix(IEnumerable<CodeInstruction> instructions)
-  {
-    var matcher = new CodeMatcher(instructions);
-    
-    var unscaledDeltaTimeGetter = AccessTools.PropertyGetter(typeof(Time), nameof(Time.unscaledDeltaTime));
-    
-    while (true)
-    {
-      matcher.MatchForward(
-        false,
-        new CodeMatch(OpCodes.Ldc_R4),
-        new CodeMatch(OpCodes.Mul),
-        new CodeMatch(OpCodes.Call, unscaledDeltaTimeGetter)
-      );
-      
-      if (!matcher.IsValid)
-        break;
-      
-      LogMatching(matcher.Pos,"CameraTVState", matcher.Instruction.ToString());
-      
-      // Is still multiplied somewhere and becomes way too fast without
-      // the additional deltaTime reduction, additional reduction to slow it down.
-      matcher.SetInstructionAndAdvance(
-        new CodeInstruction(OpCodes.Ldc_R4, 0.02f) // 3 => 1 then * 0.02
-      );
-      matcher.Advance(1);
-      matcher.SetInstructionAndAdvance(
-        new CodeInstruction(OpCodes.Ldc_R4, 1f) // unscaledDeltaTime => 1
-      );
-    }
-
-    return matcher.InstructionEnumeration();
-  }
-  
-  
-  // Loadout selection camera when selecting an airfield, to spin your plane around
-  [HarmonyPatch(typeof(CameraSelectionState), nameof(CameraSelectionState.MoveCamera))]
-  [HarmonyTranspiler]
-  internal static IEnumerable<CodeInstruction> CameraSelectionState_FPSBoundFix(IEnumerable<CodeInstruction> instructions)
-  {
-    var matcher = new CodeMatcher(instructions);
-
-    var orbitalAngleGetter = AccessTools.Field(typeof(CameraSelectionState), nameof(CameraSelectionState.orbitalAngle));
-    
-    while (true)
-    {
-      matcher.MatchForward(
-        false,
-        new CodeMatch(OpCodes.Ldfld, orbitalAngleGetter),
-        new CodeMatch(OpCodes.Ldloc_0),
-        new CodeMatch(OpCodes.Ldc_R4),
-        new CodeMatch(OpCodes.Mul),
-        new CodeMatch(OpCodes.Ldarg_2)
-      );
-      
-      if (!matcher.IsValid)
-        break;
-      
-      LogMatching(matcher.Pos,"CameraSelectionState - Rotate", matcher.Instruction.ToString());
-
-      matcher.Advance(2);
-      matcher.SetInstructionAndAdvance(
-        new CodeInstruction(OpCodes.Ldc_R4, -3f) // -150 * 0.02 => -3
-      );
-      matcher.Advance(1);
-      matcher.SetInstructionAndAdvance(
-        new CodeInstruction(OpCodes.Ldc_R4, 1f) // deltaTime => 1
-      );
-    }
-    
-    matcher = new CodeMatcher(matcher.InstructionEnumeration());
-
-    var cameraHeightGetter = AccessTools.Field(typeof(CameraSelectionState), nameof(CameraSelectionState.cameraHeight));
-
-    while (true)
-    {
-      matcher.MatchForward(
-        false,
-        new CodeMatch(OpCodes.Ldfld, cameraHeightGetter),
-        new CodeMatch(OpCodes.Ldloc_1),
-        new CodeMatch(OpCodes.Ldc_R4),
-        new CodeMatch(OpCodes.Mul),
-        new CodeMatch(OpCodes.Ldarg_2)
-      );
-      
-      if  (!matcher.IsValid)
-        break;
-      
-      LogMatching(matcher.Pos,"CameraSelectionState - Height", matcher.Instruction.ToString());
-
-      matcher.Advance(2);
-      matcher.SetInstructionAndAdvance(
-          new CodeInstruction(OpCodes.Ldc_R4, -0.01f) // -0.5 * 0.02 => -0.01
-        );
-      matcher.Advance(1);
-      matcher.SetInstructionAndAdvance(
-        new CodeInstruction(OpCodes.Ldc_R4, 1f) // deltaTime => 1
-      );
-    }
-
-    return matcher.InstructionEnumeration();
-  }
-  
-  
-  // Encyclopedia camera
-  [HarmonyPatch(typeof(CameraEncyclopediaState), nameof(CameraEncyclopediaState.MoveCamera))]
-  [HarmonyTranspiler]
-  internal static IEnumerable<CodeInstruction> CameraEncyclopediaState_FPSBoundFix(IEnumerable<CodeInstruction> instructions)
-  {
-    var matcher = new CodeMatcher(instructions);
-
-    var cameraAngleGetter = AccessTools.Field(typeof(CameraEncyclopediaState), nameof(CameraEncyclopediaState.cameraAngle));
-    var deltaTimeGetter = AccessTools.PropertyGetter(typeof(Time), nameof(Time.deltaTime));
-    
-    while (true)
-    {
-      matcher.MatchForward(
-        false,
-        new CodeMatch(OpCodes.Ldfld, cameraAngleGetter),
-        new CodeMatch(OpCodes.Ldloc_0),
-        new CodeMatch(OpCodes.Ldc_R4),
-        new CodeMatch(OpCodes.Mul),
-        new CodeMatch(OpCodes.Call, deltaTimeGetter)
-      );
-      
-      if (!matcher.IsValid)
-        break;
-      
-      LogMatching(matcher.Pos,"CameraEncyclopediaState - Rotate", matcher.Instruction.ToString());
-
-      matcher.Advance(2);
-      matcher.SetInstructionAndAdvance(
-        new CodeInstruction(OpCodes.Ldc_R4,  2f) // 100 * 0.02 => 2
-      );
-      matcher.Advance(1);
-      matcher.SetInstructionAndAdvance(
-        new CodeInstruction(OpCodes.Ldc_R4, 1f) // deltaTime => 1
-      );
-    }
-    
-    matcher = new CodeMatcher(matcher.InstructionEnumeration());
-
-    var cameraHeightGetter = AccessTools.Field(typeof(CameraEncyclopediaState), nameof(CameraEncyclopediaState.cameraHeight));
-
-    while (true)
-    {
-      matcher.MatchForward(
-        false,
-        new CodeMatch(OpCodes.Ldfld, cameraHeightGetter),
-        new CodeMatch(OpCodes.Ldloc_1),
-        new CodeMatch(OpCodes.Ldc_R4),
-        new CodeMatch(OpCodes.Mul),
-        new CodeMatch(OpCodes.Call, deltaTimeGetter)
-      );
-      
-      if  (!matcher.IsValid)
-        break;
-      
-      LogMatching(matcher.Pos,"CameraEncyclopediaState - Height", matcher.Instruction.ToString());
-
-      matcher.Advance(2);
-      matcher.SetInstructionAndAdvance(
-          new CodeInstruction(OpCodes.Ldc_R4, -0.02f) // -3 => -1 then 0.02
-        );
-      matcher.Advance(1);
-      matcher.SetInstructionAndAdvance(
-        new CodeInstruction(OpCodes.Ldc_R4, 1f) // deltaTime => 1
-      );
-    }
-
-    return matcher.InstructionEnumeration();
-  }
-
-  
-  // Map panning
-  [HarmonyPatch(typeof(DynamicMap), nameof(DynamicMap.MapControls))]
-  [HarmonyTranspiler]
-  internal static IEnumerable<CodeInstruction> DynamicMap_FPSBoundFix(IEnumerable<CodeInstruction> instructions)
-  {
-    var matcher = new CodeMatcher(instructions);
-
-    var unscaledDeltaTimeGetter = AccessTools.PropertyGetter(typeof(Time), nameof(Time.unscaledDeltaTime));
-    
-    while (true)
-    {
-      matcher.MatchForward(
-        false,
-        new CodeMatch(OpCodes.Ldc_R4),
-        new CodeMatch(OpCodes.Call, unscaledDeltaTimeGetter),
-        new CodeMatch(OpCodes.Ldc_R4)
-      );
-      
-      if (!matcher.IsValid)
-        break;
-      
-      LogMatching(matcher.Pos,"Map panning", matcher.Instruction.ToString());
-      
-      matcher.SetInstructionAndAdvance(
-        new CodeInstruction(OpCodes.Ldc_R4,  5f) // 150 => 5
-      );
-      matcher.SetInstructionAndAdvance(
-        new CodeInstruction(OpCodes.Ldc_R4, 1f) // unscaledDeltaTime => 1
-      );
-    }
-
-    return matcher.InstructionEnumeration();
-  }
-  
-  
-  /*
-  // Virtual Joystick
-  [HarmonyPatch(typeof(PilotPlayerState), nameof(PilotPlayerState.PlayerAxisControls))]
-  [HarmonyTranspiler]
-  internal static IEnumerable<CodeInstruction> VirtualJoystick_FPSBoundFix(IEnumerable<CodeInstruction> instructions)
-  {
-    var matcher = new CodeMatcher(instructions);
-
-    var unscaledDeltaTimeGetter = AccessTools.PropertyGetter(typeof(Time), nameof(Time.unscaledDeltaTime));
-    
-    while (true)
-    {
-      matcher.MatchForward(
-        false,
-        new CodeMatch(OpCodes.Call, unscaledDeltaTimeGetter)
-      );
-      
-      if (!matcher.IsValid)
-        break;
-      
-      LogMatching(matcher.Pos,"Virtual Joystick", matcher.Instruction.ToString());
-      
-      //Replacing Mathf.Min(Time.unscaledDeltaTime, 0.1f) with Mathf.Min(1, 1) for simplicity
-      matcher.SetInstructionAndAdvance(
-        new CodeInstruction(OpCodes.Ldc_R4,  1f) // unscaledDeltaTime => 1
-      );
-      matcher.SetInstructionAndAdvance(
-        new CodeInstruction(OpCodes.Ldc_R4, 1f) // 0.1 => 1
-      );
-      matcher.Advance(2);
-      matcher.SetInstructionAndAdvance(
-        new CodeInstruction(OpCodes.Ldc_R4, 1f) // 30 => 1
-      );
-    }
-
-    return matcher.InstructionEnumeration();
-  }
-
-  [HarmonyPatch(typeof(PilotPlayerState), nameof(PilotPlayerState.PlayerAxisControls))]
-  [HarmonyPostfix]
-  internal static void PlayerAxisLogger(ref PilotPlayerState __instance)
-  {
-    if (PlayerSettings.virtualJoystickEnabled)
-    {
-      if (!__instance.player.GetButton("Free Look") && GameManager.playerInput.GetAxis("Pan View") != 0)
-      {
-        PRF.Logger.LogInfo("PANVIEWLOG: " + GameManager.playerInput.GetAxis("Pan View"));
-      }
-    }
-  }
-  */
-
-  public static Vector3 GlobalJoystickPos;
-
-  [HarmonyPatch(typeof(PilotPlayerState), nameof(PilotPlayerState.UpdateState))]
-  [HarmonyPrefix]
-  public static bool TempUpdateStateReplace(Pilot pilot, ref PilotPlayerState __instance)
-  {
-    if (!((UnityEngine.Object) pilot.aircraft != (UnityEngine.Object) null))
-      return false;
-    __instance.PlayerControls();
-    // __instance.PlayerAxisControls();
-
-    /*
-    if (UpdateVector == Vector3.zero)
-    {
-      UpdateVector = SceneSingleton<FlightHud>.i.virtualJoystickPos.transform.localPosition;
-      PRF.Logger.LogInfo("UpdateVector is empty, setting it to initial position");
-    }
-    else
-    {
-      float num = PlayerSettings.virtualJoystickInvertPitch ? -1f : 1f;
-      UpdateVector = Vector3.ClampMagnitude(UpdateVector + (float) ((double) PlayerSettings.virtualJoystickSensitivity / 5) * new Vector3(GameManager.playerInput.GetAxis("Pan View"), -num * GameManager.playerInput.GetAxis("Tilt View"), 0.0f), 150f);
-      PRF.Logger.LogInfo("UpdateVector is " + UpdateVector);
-    }
-    */
-
-    if (PlayerSettings.virtualJoystickEnabled && !__instance.player.GetButton("Free Look"))
-    {
-      float num = PlayerSettings.virtualJoystickInvertPitch ? -1f : 1f;
-      Vector3 a = SceneSingleton<FlightHud>.i.virtualJoystickPos.transform.localPosition;
-      if (CameraStateManager.cameraMode == CameraMode.cockpit)
-        a = Vector3.ClampMagnitude(GlobalJoystickPos + (float) ((double) PlayerSettings.virtualJoystickSensitivity * 0.5f) * new Vector3(GameManager.playerInput.GetAxis("Pan View"), -num * GameManager.playerInput.GetAxis("Tilt View"), 0.0f), 150f);
-      GlobalJoystickPos = Vector3.Lerp(a, Vector3.zero, PlayerSettings.virtualJoystickCentering * 2f * Time.deltaTime);
-    }
-    
-    // PRF.Logger.LogInfo("UpdateVector updated in Update to " + GlobalJoystickPos);
-    
-    
-    return false;
-  }
-  
-  [HarmonyPatch(typeof(PilotPlayerState), nameof(PilotPlayerState.FixedUpdateState))]
-  [HarmonyPrefix]
-  public static bool TempFixedUpdateStateReplace(Pilot pilot, ref PilotPlayerState __instance)
-  {
-    using (PilotPlayerState.fixedUpdateStateMarker.Auto())
-    {
-      __instance.pilotStrength = __instance.gloc.SimulateGLOC(pilot.gForce);
-      if ((UnityEngine.Object) pilot.aircraft == (UnityEngine.Object) null)
-        return false;
-      __instance.PlayerAxisControls();
-      pilot.aircraft.FilterInputs();
-
-      return false;
-    }
-  }
-  
-  [HarmonyPatch(typeof(PilotPlayerState), nameof(PilotPlayerState.PlayerAxisControls))]
-  [HarmonyPrefix]
-  public static bool TempPlayerAxisControlsReplace(ref PilotPlayerState __instance)
-  {
-    if (__instance.pilot.aircraft.cockpit.IsDetached())
-      return false;
-    // float num = PlayerSettings.virtualJoystickInvertPitch ? -1f : 1f;
-    if ((!PlayerSettings.virtualJoystickEnabled ? 0 : (DynamicMap.mapMaximized ? 1 : (RadialMenuMain.IsInUse() ? 1 : 0))) != 0)
-    {
-      __instance.controlInputs.pitch = Mathf.Clamp(__instance.pitchInput, -1f, 1f);
-      __instance.controlInputs.roll = Mathf.Clamp(__instance.rollInput, -1f, 1f);
-      __instance.controlInputs.yaw = Mathf.Clamp(__instance.yawInput, -1f, 1f);
-    }
-    else if ((double) __instance.pilotStrength < 0.2)
-    {
-      __instance.controlInputs.pitch = 0.0f;
-      __instance.controlInputs.roll = 0.0f;
-      __instance.controlInputs.yaw = 0.0f;
-    }
-    else
-    {
-      __instance.pitchInput = 0.0f;
-      __instance.rollInput = 0.0f;
-      __instance.yawInput = 0.0f;
-      if (PlayerSettings.virtualJoystickEnabled)
-      {
-        if (!SceneSingleton<FlightHud>.i.virtualJoystickPos.gameObject.activeSelf)
-          SceneSingleton<FlightHud>.i.virtualJoystickPos.gameObject.SetActive(true);
-        if (!__instance.player.GetButton("Free Look"))
+        while (true)
         {
-          // Vector3 a = SceneSingleton<FlightHud>.i.virtualJoystickPos.transform.localPosition;
-          /*
-          if (CameraStateManager.cameraMode == CameraMode.cockpit)
-          {
-            //  a = Vector3.ClampMagnitude(a + (float) ((double) PlayerSettings.virtualJoystickSensitivity * (double) Mathf.Min(Time.unscaledDeltaTime, 0.1f) * 30.0) * new Vector3(GameManager.playerInput.GetAxis("Pan View"), -num * GameManager.playerInput.GetAxis("Tilt View"), 0.0f), 150f);
-            a = GlobalJoystickPos;
-            PRF.Logger.LogInfo("PlayerAxisControls updating a vector from UpdateVector inside FixedUpdate to " + a);
-          }
-          */
-          // Vector3 joystickPos = Vector3.Lerp(a, Vector3.zero, PlayerSettings.virtualJoystickCentering * 2f * Time.deltaTime);
-          SceneSingleton<FlightHud>.i.SetVirtualJoystick(GlobalJoystickPos);
-        }
-        if (!DynamicMap.mapMaximized && !RadialMenuMain.IsInUse() && !Leaderboard.IsOpen())
-        {
-          __instance.pitchInput = (float) (-(double) SceneSingleton<FlightHud>.i.virtualJoystickPos.transform.localPosition.y / 150.0);
-          __instance.rollInput = SceneSingleton<FlightHud>.i.virtualJoystickPos.transform.localPosition.x / 150f;
-          if ((double) __instance.pilot.aircraft.radarAlt < (double) __instance.pilot.aircraft.definition.spawnOffset.y + 1.0)
-            __instance.yawInput = SceneSingleton<FlightHud>.i.virtualJoystickPos.transform.localPosition.x / 150f;
-        }
-      }
-      else if (SceneSingleton<FlightHud>.i.virtualJoystickPos.gameObject.activeSelf)
-        SceneSingleton<FlightHud>.i.virtualJoystickPos.gameObject.SetActive(false);
-      __instance.pitchInput += __instance.player.GetAxis("Pitch");
-      __instance.rollInput += __instance.player.GetAxis("Roll");
-      __instance.yawInput += __instance.player.GetAxis("Yaw");
-      __instance.controlInputs.pitch = Mathf.Clamp(__instance.pitchInput, -1f, 1f);
-      __instance.controlInputs.roll = Mathf.Clamp(__instance.rollInput, -1f, 1f);
-      __instance.controlInputs.yaw = Mathf.Clamp(__instance.yawInput, -1f, 1f);
-      if (!__instance.pilot.aircraft.IsAutoHoverEnabled())
-        return false;
-      __instance.PlayerThrottleAxis1Controls();
-    }
-
-    return false;
-  }
-  
-  
-  /* Previous try with limiting max 1 action per frame in case FPS < PhysicsFPS
-  private static int _lastProcessedFrame = -1;
-  
-  [HarmonyPatch(typeof(PilotPlayerState), nameof(PilotPlayerState.PlayerAxisControls))]
-  [HarmonyPrefix]
-  public static bool TempVJReplace(ref PilotPlayerState __instance)
-  {
-    //PRF.Logger.LogInfo($"frame={Time.frameCount} axis={GameManager.playerInput.GetAxis("Pan View")}");
-    
-    if (__instance.pilot.aircraft.cockpit.IsDetached())
-      return false;
-    float num = PlayerSettings.virtualJoystickInvertPitch ? -1f : 1f;
-    if ((!PlayerSettings.virtualJoystickEnabled ? 0 : (DynamicMap.mapMaximized ? 1 : (RadialMenuMain.IsInUse() ? 1 : 0))) != 0)
-    {
-      __instance.controlInputs.pitch = Mathf.Clamp(__instance.pitchInput, -1f, 1f);
-      __instance.controlInputs.roll = Mathf.Clamp(__instance.rollInput, -1f, 1f);
-      __instance.controlInputs.yaw = Mathf.Clamp(__instance.yawInput, -1f, 1f);
-    }
-    else if ((double) __instance.pilotStrength < 0.2)
-    {
-      __instance.controlInputs.pitch = 0.0f;
-      __instance.controlInputs.roll = 0.0f;
-      __instance.controlInputs.yaw = 0.0f;
-    }
-    else
-    {
-      __instance.pitchInput = 0.0f;
-      __instance.rollInput = 0.0f;
-      __instance.yawInput = 0.0f;
-      
-      // Don't duplicate events per update frame
-      if (PlayerSettings.virtualJoystickEnabled && _lastProcessedFrame != Time.frameCount)
-      {
-        if (!SceneSingleton<FlightHud>.i.virtualJoystickPos.gameObject.activeSelf)
-          SceneSingleton<FlightHud>.i.virtualJoystickPos.gameObject.SetActive(true);
-        if (!__instance.player.GetButton("Free Look"))
-        {
-          Vector3 a = SceneSingleton<FlightHud>.i.virtualJoystickPos.transform.localPosition;
-          
-          if (CameraStateManager.cameraMode == CameraMode.cockpit)
-            // deltaTime removed here?
-            a = Vector3.ClampMagnitude(
-              a + 
-              (float) ((double) PlayerSettings.virtualJoystickSensitivity)
-              * new Vector3(GameManager.playerInput.GetAxis("Pan View"),
-                -num * GameManager.playerInput.GetAxis("Tilt View"), 0.0f), 
-              150f
+            matcher.MatchForward(
+                false,
+                new CodeMatch(OpCodes.Ldc_R4),
+                new CodeMatch(OpCodes.Mul),
+                new CodeMatch(OpCodes.Ldsfld, viewSensitivityField),
+                new CodeMatch(OpCodes.Mul),
+                new CodeMatch(OpCodes.Call, unscaledDeltaTimeGetter)
             );
-          
-          Vector3 joystickPos = Vector3.Lerp(a, Vector3.zero, PlayerSettings.virtualJoystickCentering * 2f * Time.deltaTime);
-          
-          // Extra logging
-          if (GameManager.playerInput.GetAxis("Pan View") != 0)
-          {
-            //PRF.Logger.LogInfo("a vector: " + a);
-            //PRF.Logger.LogInfo("joystick pos: " + joystickPos);
-          }
-          
-          SceneSingleton<FlightHud>.i.SetVirtualJoystick(joystickPos);
+
+            if (!matcher.IsValid)
+                break;
+      
+            matcher.SetInstructionAndAdvance(
+                new CodeInstruction(OpCodes.Ldc_R4, 1f)
+            ); // 120f => 1f
+            matcher.Advance(3);
+            matcher.SetInstructionAndAdvance(
+                new CodeInstruction(
+                    OpCodes.Call,
+                    AccessTools.Method(typeof(FPSBoundMouseFix), nameof(GetCockpitFreelookSensitivity)))
+            ); // unscaledDeltaTime => _cockpitFreelookSensitivity
         }
-        if (!DynamicMap.mapMaximized && !RadialMenuMain.IsInUse() && !Leaderboard.IsOpen())
+
+        return matcher.InstructionEnumeration();
+    }
+    
+    
+    // Map panning
+    [HarmonyPatch(typeof(DynamicMap), nameof(DynamicMap.MapControls))]
+    [HarmonyTranspiler]
+    internal static IEnumerable<CodeInstruction> DynamicMap_FPSBoundFix(IEnumerable<CodeInstruction> instructions)
+    {
+        var matcher = new CodeMatcher(instructions);
+
+        var unscaledDeltaTimeGetter = AccessTools.PropertyGetter(typeof(Time), nameof(Time.unscaledDeltaTime));
+    
+        while (true)
         {
-          __instance.pitchInput = (float) (-(double) SceneSingleton<FlightHud>.i.virtualJoystickPos.transform.localPosition.y / 150.0);
-          __instance.rollInput = SceneSingleton<FlightHud>.i.virtualJoystickPos.transform.localPosition.x / 150f;
-          if ((double) __instance.pilot.aircraft.radarAlt < (double) __instance.pilot.aircraft.definition.spawnOffset.y + 1.0)
-            __instance.yawInput = SceneSingleton<FlightHud>.i.virtualJoystickPos.transform.localPosition.x / 150f;
+            matcher.MatchForward(
+                false,
+                new CodeMatch(OpCodes.Ldc_R4),
+                new CodeMatch(OpCodes.Call, unscaledDeltaTimeGetter),
+                new CodeMatch(OpCodes.Ldc_R4)
+            );
+      
+            if (!matcher.IsValid)
+                break;
+      
+            matcher.SetInstructionAndAdvance(
+                new CodeInstruction(
+                    OpCodes.Call,
+                    AccessTools.Method(typeof(FPSBoundMouseFix), nameof(GetMapPanSensitivity)))
+            ); // 150 => GetMapPanSensitivity which is _mapPanSensitivity * 25 so 25f by default
+            matcher.SetInstructionAndAdvance(
+                new CodeInstruction(OpCodes.Ldc_R4, 1f)
+            ); // unscaledDeltaTime => 1f, this is in a Mathf.Min function
+        }
+
+        return matcher.InstructionEnumeration();
+    }
+
+  
+    // Orbit 3rd person camera pan/tilt and zoom
+    [HarmonyPatch(typeof(CameraOrbitState), nameof(CameraOrbitState.Inputs))]
+    [HarmonyTranspiler]
+    internal static IEnumerable<CodeInstruction> OrbitCamera_FPSBoundFix(IEnumerable<CodeInstruction> instructions)
+    {
+        var matcher = new CodeMatcher(instructions);
+    
+        var viewSensitivityField = AccessTools.Field(typeof(PlayerSettings), nameof(PlayerSettings.viewSensitivity));
+        var unscaledDeltaTimeGetter = AccessTools.PropertyGetter(typeof(Time), nameof(Time.unscaledDeltaTime));
+    
+        while (true)
+        {
+            matcher.MatchForward(
+                false,
+                new CodeMatch(OpCodes.Ldc_R4),
+                new CodeMatch(OpCodes.Mul),
+                new CodeMatch(OpCodes.Ldsfld, viewSensitivityField),
+                new CodeMatch(OpCodes.Mul),
+                new CodeMatch(OpCodes.Call, unscaledDeltaTimeGetter)
+            );
+      
+            if (!matcher.IsValid)
+                break;
+
+            matcher.SetInstructionAndAdvance(
+                new CodeInstruction(OpCodes.Ldc_R4, 1f)
+            ); // 90 => 1
+            matcher.Advance(3);
+            matcher.SetInstructionAndAdvance(
+                new CodeInstruction(
+                    OpCodes.Call,
+                    AccessTools.Method(typeof(FPSBoundMouseFix), nameof(GetOrbitCamSensitivity)))
+            ); // unscaledDeltaTime => _orbitCamSensitivity
+        }
+
+        matcher = new CodeMatcher(matcher.InstructionEnumeration());
+
+        while (true)
+        {
+            matcher.MatchForward(
+                false,
+                new CodeMatch(OpCodes.Ldstr, "Zoom View"),
+                new CodeMatch(OpCodes.Callvirt),
+                new CodeMatch(OpCodes.Ldc_R4),
+                new CodeMatch(OpCodes.Mul),
+                new CodeMatch(OpCodes.Call, unscaledDeltaTimeGetter)
+            );
+
+            if (!matcher.IsValid)
+                break;
+
+            matcher.Advance(2);
+            matcher.SetInstructionAndAdvance(
+                new CodeInstruction(OpCodes.Ldc_R4, 1f)
+            ); // 60 => 1
+            matcher.Advance(1);
+            matcher.SetInstructionAndAdvance(
+                new CodeInstruction(
+                    OpCodes.Call,
+                    AccessTools.Method(typeof(FPSBoundMouseFix), nameof(GetOrbitZoomSensitivity)))
+            ); // unscaledDeltaTime => _orbitZoomSensitivity
+        }
+
+        return matcher.InstructionEnumeration();
+    }
+  
+  
+    // TV / Cinema camera
+    [HarmonyPatch(typeof(CameraTVState), nameof(CameraTVState.UpdateState))]
+    [HarmonyTranspiler]
+    internal static IEnumerable<CodeInstruction> TVCamera_FPSBoundFix(IEnumerable<CodeInstruction> instructions)
+    {
+        var matcher = new CodeMatcher(instructions);
+    
+        var unscaledDeltaTimeGetter = AccessTools.PropertyGetter(typeof(Time), nameof(Time.unscaledDeltaTime));
+    
+        while (true)
+        {
+            matcher.MatchForward(
+                false,
+                new CodeMatch(OpCodes.Ldc_R4),
+                new CodeMatch(OpCodes.Mul),
+                new CodeMatch(OpCodes.Call, unscaledDeltaTimeGetter)
+            );
+      
+            if (!matcher.IsValid)
+                break;
+      
+            // Is still multiplied somewhere and becomes way too fast without
+            // the additional deltaTime reduction, additional reduction to slow it down.
+            matcher.SetInstructionAndAdvance(
+                new CodeInstruction(OpCodes.Ldc_R4, 0.02f)
+            ); // 3 => 1 then * 0.02
+            matcher.Advance(1);
+            matcher.SetInstructionAndAdvance(
+                new CodeInstruction(
+                    OpCodes.Call,
+                    AccessTools.Method(typeof(FPSBoundMouseFix), nameof(GetTVCamSensitivity)))
+            ); // unscaledDeltaTime => _TVCamSensitivity
+        }
+
+        return matcher.InstructionEnumeration();
+    }
+  
+  
+    // Loadout selection camera when selecting an airfield, to spin your plane around
+    [HarmonyPatch(typeof(CameraSelectionState), nameof(CameraSelectionState.MoveCamera))]
+    [HarmonyTranspiler]
+    internal static IEnumerable<CodeInstruction> CameraSelectionState_FPSBoundFix(IEnumerable<CodeInstruction> instructions)
+    {
+        var matcher = new CodeMatcher(instructions);
+
+        var orbitalAngleGetter = AccessTools.Field(typeof(CameraSelectionState), nameof(CameraSelectionState.orbitalAngle));
+    
+        while (true)
+        {
+            matcher.MatchForward(
+                false,
+                new CodeMatch(OpCodes.Ldfld, orbitalAngleGetter),
+                new CodeMatch(OpCodes.Ldloc_0),
+                new CodeMatch(OpCodes.Ldc_R4),
+                new CodeMatch(OpCodes.Mul),
+                new CodeMatch(OpCodes.Ldarg_2)
+            );
+      
+            if (!matcher.IsValid)
+                break;
+
+            matcher.Advance(2);
+            matcher.SetInstructionAndAdvance(
+                new CodeInstruction(OpCodes.Ldc_R4, -3f) // -150 * 0.02 => -3
+            );
+            matcher.Advance(1);
+            matcher.SetInstructionAndAdvance(
+                new CodeInstruction(OpCodes.Ldc_R4, 1f) // deltaTime => 1
+            );
+        }
+    
+        matcher = new CodeMatcher(matcher.InstructionEnumeration());
+
+        var cameraHeightGetter = AccessTools.Field(typeof(CameraSelectionState), nameof(CameraSelectionState.cameraHeight));
+
+        while (true)
+        {
+            matcher.MatchForward(
+                false,
+                new CodeMatch(OpCodes.Ldfld, cameraHeightGetter),
+                new CodeMatch(OpCodes.Ldloc_1),
+                new CodeMatch(OpCodes.Ldc_R4),
+                new CodeMatch(OpCodes.Mul),
+                new CodeMatch(OpCodes.Ldarg_2)
+            );
+      
+            if  (!matcher.IsValid)
+                break;
+
+            matcher.Advance(2);
+            matcher.SetInstructionAndAdvance(
+                new CodeInstruction(OpCodes.Ldc_R4, -0.01f) // -0.5 * 0.02 => -0.01
+            );
+            matcher.Advance(1);
+            matcher.SetInstructionAndAdvance(
+                new CodeInstruction(OpCodes.Ldc_R4, 1f) // deltaTime => 1
+            );
+        }
+
+        return matcher.InstructionEnumeration();
+    }
+  
+  
+    // Encyclopedia camera
+    [HarmonyPatch(typeof(CameraEncyclopediaState), nameof(CameraEncyclopediaState.MoveCamera))]
+    [HarmonyTranspiler]
+    internal static IEnumerable<CodeInstruction> CameraEncyclopediaState_FPSBoundFix(IEnumerable<CodeInstruction> instructions)
+    {
+        var matcher = new CodeMatcher(instructions);
+
+        var cameraAngleGetter = AccessTools.Field(typeof(CameraEncyclopediaState), nameof(CameraEncyclopediaState.cameraAngle));
+        var deltaTimeGetter = AccessTools.PropertyGetter(typeof(Time), nameof(Time.deltaTime));
+    
+        while (true)
+        {
+            matcher.MatchForward(
+                false,
+                new CodeMatch(OpCodes.Ldfld, cameraAngleGetter),
+                new CodeMatch(OpCodes.Ldloc_0),
+                new CodeMatch(OpCodes.Ldc_R4),
+                new CodeMatch(OpCodes.Mul),
+                new CodeMatch(OpCodes.Call, deltaTimeGetter)
+            );
+      
+            if (!matcher.IsValid)
+                break;
+
+            matcher.Advance(2);
+            matcher.SetInstructionAndAdvance(
+                new CodeInstruction(OpCodes.Ldc_R4,  2f) // 100 * 0.02 => 2
+            );
+            matcher.Advance(1);
+            matcher.SetInstructionAndAdvance(
+                new CodeInstruction(OpCodes.Ldc_R4, 1f) // deltaTime => 1
+            );
+        }
+    
+        matcher = new CodeMatcher(matcher.InstructionEnumeration());
+
+        var cameraHeightGetter = AccessTools.Field(typeof(CameraEncyclopediaState), nameof(CameraEncyclopediaState.cameraHeight));
+
+        while (true)
+        {
+            matcher.MatchForward(
+                false,
+                new CodeMatch(OpCodes.Ldfld, cameraHeightGetter),
+                new CodeMatch(OpCodes.Ldloc_1),
+                new CodeMatch(OpCodes.Ldc_R4),
+                new CodeMatch(OpCodes.Mul),
+                new CodeMatch(OpCodes.Call, deltaTimeGetter)
+            );
+      
+            if  (!matcher.IsValid)
+                break;
+
+            matcher.Advance(2);
+            matcher.SetInstructionAndAdvance(
+                new CodeInstruction(OpCodes.Ldc_R4, -0.02f) // -3 => -1 then 0.02
+            );
+            matcher.Advance(1);
+            matcher.SetInstructionAndAdvance(
+                new CodeInstruction(OpCodes.Ldc_R4, 1f) // deltaTime => 1
+            );
+        }
+
+        return matcher.InstructionEnumeration();
+    }
+
+    private static Vector3 _globalJoystickPos; // Bridge vector to transfer info from UpdateState to FixedUpdateState
+
+    // Moved function setting virtual joystick's joystickPos value to UpdateState to not double up deltaTime from running it in FixedUpdateState
+    [HarmonyPatch(typeof(PilotPlayerState), nameof(PilotPlayerState.UpdateState))]
+    [HarmonyPrefix]
+    public static bool TempUpdateStateReplace(Pilot pilot, ref PilotPlayerState __instance)
+    {
+        if (!((UnityEngine.Object) pilot.aircraft != (UnityEngine.Object) null))
+            return false;
+        __instance.PlayerControls();
+
+        if (PlayerSettings.virtualJoystickEnabled && !__instance.player.GetButton("Free Look"))
+        {
+            float num = PlayerSettings.virtualJoystickInvertPitch ? -1f : 1f;
+            Vector3 a = SceneSingleton<FlightHud>.i.virtualJoystickPos.transform.localPosition;
+            // Extra _virtualJoystickSensitivityX and Y multipliers, individually applied to each GetAxis, instead of deltaTime and flat 30f
+            // Stacks with vanilla virtualJoystickSensitivity setting and gives more control to support wider ranges of sensitivity
+            // And enables sensitivity control per axis
+            if (CameraStateManager.cameraMode == CameraMode.cockpit)
+            {
+                float pan = GameManager.playerInput.GetAxis("Pan View") * GetVirtualJoystickSensitivityX();
+                float tilt = -num * GameManager.playerInput.GetAxis("Tilt View") * GetVirtualJoystickSensitivityY();
+            
+                a = Vector3.ClampMagnitude(_globalJoystickPos + (float) ((double) PlayerSettings.virtualJoystickSensitivity)
+                    * new Vector3(pan, tilt, 0.0f), 150f);
+            }
+
+            // this _globalJoystickPos gets used in PlayerAxisControls ran in FixedUpdateState to for SetVirtualJoystick
+            // The static 2f virtualJoystickCentering multiplier is replaced by GetVirtualJoystickCenteringForce which is _virtualJoystickCenteringForce * 4
+            _globalJoystickPos = Vector3.Lerp(a, Vector3.zero, PlayerSettings.virtualJoystickCentering * GetVirtualJoystickCenteringForce() * Time.deltaTime);
         }
         
-        _lastProcessedFrame = Time.frameCount;
-        PRF.Logger.LogInfo($"frame={Time.frameCount} axis={GameManager.playerInput.GetAxis("Pan View")}");
-      }
-      else if (SceneSingleton<FlightHud>.i.virtualJoystickPos.gameObject.activeSelf)
-        SceneSingleton<FlightHud>.i.virtualJoystickPos.gameObject.SetActive(false);
-      __instance.pitchInput += __instance.player.GetAxis("Pitch");
-      __instance.rollInput += __instance.player.GetAxis("Roll");
-      __instance.yawInput += __instance.player.GetAxis("Yaw");
-      __instance.controlInputs.pitch = Mathf.Clamp(__instance.pitchInput, -1f, 1f);
-      __instance.controlInputs.roll = Mathf.Clamp(__instance.rollInput, -1f, 1f);
-      __instance.controlInputs.yaw = Mathf.Clamp(__instance.yawInput, -1f, 1f);
-      if (!__instance.pilot.aircraft.IsAutoHoverEnabled())
         return false;
-      __instance.PlayerThrottleAxis1Controls();
     }
+    
+    // PlayerAxisControls no longer sets its joystickPos and instead gets that data via _globalJoystickPos from UpdateState
+    [HarmonyPatch(typeof(PilotPlayerState), nameof(PilotPlayerState.PlayerAxisControls))]
+    [HarmonyPrefix]
+    public static bool TempPlayerAxisControlsReplace(ref PilotPlayerState __instance)
+    {
+        if (__instance.pilot.aircraft.cockpit.IsDetached())
+            return false;
+        // Moved to UpdateState
+        // float num = PlayerSettings.virtualJoystickInvertPitch ? -1f : 1f;
+        if ((!PlayerSettings.virtualJoystickEnabled ? 0 : (DynamicMap.mapMaximized ? 1 : (RadialMenuMain.IsInUse() ? 1 : 0))) != 0)
+        {
+            __instance.controlInputs.pitch = Mathf.Clamp(__instance.pitchInput, -1f, 1f);
+            __instance.controlInputs.roll = Mathf.Clamp(__instance.rollInput, -1f, 1f);
+            __instance.controlInputs.yaw = Mathf.Clamp(__instance.yawInput, -1f, 1f);
+        }
+        else if ((double) __instance.pilotStrength < 0.2)
+        {
+            __instance.controlInputs.pitch = 0.0f;
+            __instance.controlInputs.roll = 0.0f;
+            __instance.controlInputs.yaw = 0.0f;
+        }
+        else
+        {
+            __instance.pitchInput = 0.0f;
+            __instance.rollInput = 0.0f;
+            __instance.yawInput = 0.0f;
+            if (PlayerSettings.virtualJoystickEnabled)
+            {
+                if (!SceneSingleton<FlightHud>.i.virtualJoystickPos.gameObject.activeSelf)
+                    SceneSingleton<FlightHud>.i.virtualJoystickPos.gameObject.SetActive(true);
+                if (!__instance.player.GetButton("Free Look"))
+                {
+                    // Moved to UpdateState
+                    /*
+                    Vector3 a = SceneSingleton<FlightHud>.i.virtualJoystickPos.transform.localPosition;
+                    if (CameraStateManager.cameraMode == CameraMode.cockpit)
+                    {
+                      //  a = Vector3.ClampMagnitude(a + (float) ((double) PlayerSettings.virtualJoystickSensitivity * (double) Mathf.Min(Time.unscaledDeltaTime, 0.1f) * 30.0) * new Vector3(GameManager.playerInput.GetAxis("Pan View"), -num * GameManager.playerInput.GetAxis("Tilt View"), 0.0f), 150f);
+                      a = GlobalJoystickPos;
+                      PRF.Logger.LogInfo("PlayerAxisControls updating a vector from UpdateVector inside FixedUpdate to " + a);
+                    }
+                    // Vector3 joystickPos = Vector3.Lerp(a, Vector3.zero, PlayerSettings.virtualJoystickCentering * 2f * Time.deltaTime);
+                    */
+                    // Getting _globalJoystickPos from UpdateState instead of joystickPos from this FixedUpdateState (which'd add another layer of deltaTime based on physics FPS)
+                    SceneSingleton<FlightHud>.i.SetVirtualJoystick(_globalJoystickPos);
+                }
+                if (!DynamicMap.mapMaximized && !RadialMenuMain.IsInUse() && !Leaderboard.IsOpen())
+                {
+                    __instance.pitchInput = (float) (-(double) SceneSingleton<FlightHud>.i.virtualJoystickPos.transform.localPosition.y / 150.0);
+                    __instance.rollInput = SceneSingleton<FlightHud>.i.virtualJoystickPos.transform.localPosition.x / 150f;
+                    if ((double) __instance.pilot.aircraft.radarAlt < (double) __instance.pilot.aircraft.definition.spawnOffset.y + 1.0)
+                        __instance.yawInput = SceneSingleton<FlightHud>.i.virtualJoystickPos.transform.localPosition.x / 150f;
+                }
+            }
+            else if (SceneSingleton<FlightHud>.i.virtualJoystickPos.gameObject.activeSelf)
+                SceneSingleton<FlightHud>.i.virtualJoystickPos.gameObject.SetActive(false);
+            __instance.pitchInput += __instance.player.GetAxis("Pitch");
+            __instance.rollInput += __instance.player.GetAxis("Roll");
+            __instance.yawInput += __instance.player.GetAxis("Yaw");
+            __instance.controlInputs.pitch = Mathf.Clamp(__instance.pitchInput, -1f, 1f);
+            __instance.controlInputs.roll = Mathf.Clamp(__instance.rollInput, -1f, 1f);
+            __instance.controlInputs.yaw = Mathf.Clamp(__instance.yawInput, -1f, 1f);
+            if (!__instance.pilot.aircraft.IsAutoHoverEnabled())
+                return false;
+            __instance.PlayerThrottleAxis1Controls();
+        }
 
-    return false;
-  }
-  */
-  
-  
+        return false;
+    }
 }
