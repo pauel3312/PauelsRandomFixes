@@ -3,6 +3,7 @@ using HarmonyLib;
 using UnityEngine;
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
+using System.Reflection;
 using System.Reflection.Emit;
 
 
@@ -26,37 +27,27 @@ internal class FPSBoundMouseFix : ConfigurableFix
 
     protected override string Description =>
         $"if true, {GetType().Name} is enabled\nFixes mouse virtual joystick and freelook sensitivities being dependent"
-        + "on FPS. Since the game uses GetAxis for both mouse and controller axes, with this enabled behaviour will"
-        + "be flipped for freelook with controllers, and their sensitivity will be FPS dependent.";
+        + " on FPS. Since the game uses GetAxis for both mouse and controller axes, with this enabled behaviour will"
+        + " be flipped for freelook with controllers, and their sensitivity will be FPS dependent.";
 
     public FPSBoundMouseFix(ConfigFile config) : base(config)
     {
         _cockpitFreelookSensitivity = config.Bind(GetType().Name, "Cockpit Freelook Sensitivity", 1f,
-            new ConfigDescription("Cockpit freelook sensitivity",
-                new AcceptableValueRange<float>(0f, 100f)));
+            "Cockpit freelook sensitivity");
         _mapPanSensitivity = config.Bind(GetType().Name, "Map Panning Sensitivity", 1f,
-            new ConfigDescription("Map panning sensitivity",
-                new AcceptableValueRange<float>(0f, 100f)));
+            "Map panning sensitivity");
         _orbitCamSensitivity = config.Bind(GetType().Name, "Orbit Cam Sensitivity", 1f,
-            new ConfigDescription("Orbit cam sensitivity",
-                new AcceptableValueRange<float>(0f, 100f)));
+            "Orbit cam sensitivity");
         _orbitZoomSensitivity = config.Bind(GetType().Name, "Orbit Cam Zoom Sensitivity", 1f,
-            new ConfigDescription("Orbit cam zoom sensitivity",
-                new AcceptableValueRange<float>(0f, 100f)));
+            "Orbit cam zoom sensitivity");
         _TVCamSensitivity = config.Bind(GetType().Name, "TV (Flyby) Cam Sensitivity", 1f,
-            new ConfigDescription("TV (Flyby) cam sensitivity",
-                new AcceptableValueRange<float>(0f, 100f)));
+            "TV (Flyby) cam sensitivity");
         _virtualJoystickCenteringForce = config.Bind(GetType().Name, "Virtual Joystick Centering Sensitivity", 1f,
-            new ConfigDescription("Virtual joystick centering force sensitivity - stacks with vanilla setting, here to give extra control",
-                new AcceptableValueRange<float>(0f, 100f)));
+            "Virtual joystick centering force sensitivity - stacks with vanilla setting, here to give extra control");
         _virtualJoystickSensitivityX = config.Bind(GetType().Name, "Virtual Joystick X-Sensitivity", 1f,
-            new ConfigDescription(
-                "Virtual joystick X-sensitivity - stacks with vanilla setting, here to give extra control",
-                new AcceptableValueRange<float>(0f, 100f)));
+            "Virtual joystick X-sensitivity - stacks with vanilla setting, here to give extra control");
         _virtualJoystickSensitivityY = config.Bind(GetType().Name, "Virtual Joystick Y-Sensitivity", 1f,
-            new ConfigDescription(
-                "Virtual joystick Y-sensitivity - stacks with vanilla setting, here to give extra control",
-                new AcceptableValueRange<float>(0f, 100f)));
+            "Virtual joystick Y-sensitivity - stacks with vanilla setting, here to give extra control");
     }
 
     public static float GetCockpitFreelookSensitivity()
@@ -91,6 +82,14 @@ internal class FPSBoundMouseFix : ConfigurableFix
     {
         return _virtualJoystickSensitivityY.Value * 0.5f;
     }
+
+    private static class ReusedRefs
+    {
+        public static readonly FieldInfo GetViewSensitivity =
+            AccessTools.Field(typeof(PlayerSettings), nameof(PlayerSettings.viewSensitivity));
+        public static readonly MethodInfo GetUnscaledDeltaTime =
+            AccessTools.PropertyGetter(typeof(Time), nameof(Time.unscaledDeltaTime));
+    }
   
     // Cockpit freelook (with VJ on + Freelook button, and with regular Freelook)
     [HarmonyPatch(typeof(CameraCockpitState), nameof(CameraCockpitState.UpdateState))]
@@ -98,9 +97,6 @@ internal class FPSBoundMouseFix : ConfigurableFix
     internal static IEnumerable<CodeInstruction> Cockpit_FPSBoundFix(IEnumerable<CodeInstruction> instructions)
     {
         var matcher = new CodeMatcher(instructions);
-    
-        var viewSensitivityField = AccessTools.Field(typeof(PlayerSettings), nameof(PlayerSettings.viewSensitivity));
-        var unscaledDeltaTimeGetter = AccessTools.PropertyGetter(typeof(Time), nameof(Time.unscaledDeltaTime));
 
         while (true)
         {
@@ -108,9 +104,9 @@ internal class FPSBoundMouseFix : ConfigurableFix
                 false,
                 new CodeMatch(OpCodes.Ldc_R4),
                 new CodeMatch(OpCodes.Mul),
-                new CodeMatch(OpCodes.Ldsfld, viewSensitivityField),
+                new CodeMatch(OpCodes.Ldsfld, ReusedRefs.GetViewSensitivity),
                 new CodeMatch(OpCodes.Mul),
-                new CodeMatch(OpCodes.Call, unscaledDeltaTimeGetter)
+                new CodeMatch(OpCodes.Call, ReusedRefs.GetUnscaledDeltaTime)
             );
 
             if (!matcher.IsValid)
@@ -137,15 +133,13 @@ internal class FPSBoundMouseFix : ConfigurableFix
     internal static IEnumerable<CodeInstruction> DynamicMap_FPSBoundFix(IEnumerable<CodeInstruction> instructions)
     {
         var matcher = new CodeMatcher(instructions);
-
-        var unscaledDeltaTimeGetter = AccessTools.PropertyGetter(typeof(Time), nameof(Time.unscaledDeltaTime));
-    
+        
         while (true)
         {
             matcher.MatchForward(
                 false,
                 new CodeMatch(OpCodes.Ldc_R4),
-                new CodeMatch(OpCodes.Call, unscaledDeltaTimeGetter),
+                new CodeMatch(OpCodes.Call, ReusedRefs.GetUnscaledDeltaTime),
                 new CodeMatch(OpCodes.Ldc_R4)
             );
       
@@ -172,19 +166,16 @@ internal class FPSBoundMouseFix : ConfigurableFix
     internal static IEnumerable<CodeInstruction> OrbitCamera_FPSBoundFix(IEnumerable<CodeInstruction> instructions)
     {
         var matcher = new CodeMatcher(instructions);
-    
-        var viewSensitivityField = AccessTools.Field(typeof(PlayerSettings), nameof(PlayerSettings.viewSensitivity));
-        var unscaledDeltaTimeGetter = AccessTools.PropertyGetter(typeof(Time), nameof(Time.unscaledDeltaTime));
-    
+
         while (true)
         {
             matcher.MatchForward(
                 false,
                 new CodeMatch(OpCodes.Ldc_R4),
                 new CodeMatch(OpCodes.Mul),
-                new CodeMatch(OpCodes.Ldsfld, viewSensitivityField),
+                new CodeMatch(OpCodes.Ldsfld, ReusedRefs.GetViewSensitivity),
                 new CodeMatch(OpCodes.Mul),
-                new CodeMatch(OpCodes.Call, unscaledDeltaTimeGetter)
+                new CodeMatch(OpCodes.Call, ReusedRefs.GetUnscaledDeltaTime)
             );
       
             if (!matcher.IsValid)
@@ -211,7 +202,7 @@ internal class FPSBoundMouseFix : ConfigurableFix
                 new CodeMatch(OpCodes.Callvirt),
                 new CodeMatch(OpCodes.Ldc_R4),
                 new CodeMatch(OpCodes.Mul),
-                new CodeMatch(OpCodes.Call, unscaledDeltaTimeGetter)
+                new CodeMatch(OpCodes.Call, ReusedRefs.GetUnscaledDeltaTime)
             );
 
             if (!matcher.IsValid)
@@ -239,16 +230,14 @@ internal class FPSBoundMouseFix : ConfigurableFix
     internal static IEnumerable<CodeInstruction> TVCamera_FPSBoundFix(IEnumerable<CodeInstruction> instructions)
     {
         var matcher = new CodeMatcher(instructions);
-    
-        var unscaledDeltaTimeGetter = AccessTools.PropertyGetter(typeof(Time), nameof(Time.unscaledDeltaTime));
-    
+
         while (true)
         {
             matcher.MatchForward(
                 false,
                 new CodeMatch(OpCodes.Ldc_R4),
                 new CodeMatch(OpCodes.Mul),
-                new CodeMatch(OpCodes.Call, unscaledDeltaTimeGetter)
+                new CodeMatch(OpCodes.Call, ReusedRefs.GetUnscaledDeltaTime)
             );
       
             if (!matcher.IsValid)
