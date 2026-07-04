@@ -33,10 +33,7 @@ internal class RequireFreelookWithoutVJ(ConfigFile config): ConfigurableFix(conf
             );
 
         if (!matcher.IsValid)
-        {
-            PRF.Logger.LogInfo("No matches found!");
             return matcher.InstructionEnumeration();
-        }
         
         var skipOperand = (Label)matcher.Instruction.operand;
         var playerInput = AccessTools.Field(typeof(GameManager), nameof(GameManager.playerInput));
