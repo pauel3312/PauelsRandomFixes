@@ -9,7 +9,7 @@ namespace PRF.Fixes;
 internal class ThrottleRelativeVelocity : ConfigurableFix
 {
     private static ConfigEntry<float> _inputSensitivity = null!;
-
+    
     public ThrottleRelativeVelocity(ConfigFile config) : base(config)
     {
         _inputSensitivity = config.Bind(GetType().Name, "RelativeSensitivity", 3.00f,
@@ -32,13 +32,13 @@ internal class ThrottleRelativeVelocity : ConfigurableFix
             prevThrottleInput = __instance.simulatedThrottle;
             // End of changes
         }
-
+        
         if (__instance.player.GetButton("Axis Modifier"))
         {
             customAxisInput += throttleInput;
             throttleInput = 0.0f;
         }
-
+        
         var throttleInputDiff = Mathf.Abs(throttleInput - prevThrottleInput);
         if (throttleInputDiff > 0.0 && throttleInputDiff < 0.5)
             __instance.simulatedThrottle =
@@ -62,7 +62,7 @@ internal class ThrottleRelativeVelocity : ConfigurableFix
         if (__instance.collective && PlayerSettings.invertCollective)
             simThrottle = 1f - simThrottle;
         __instance.controlInputs.throttle = Mathf.Clamp01(simThrottle);
-
+        
         return false;
     }
 }

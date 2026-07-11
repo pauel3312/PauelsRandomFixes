@@ -14,12 +14,11 @@ internal class LockedMapControlsWithVJFix(ConfigFile config) : ConfigurableFix(c
     //  VJ is off => player opens map => manually turns VJ on in settings => closes map, make sure it stays on
     // Instead of tracking what it was on map open and returning it to the off state on close
     // (which would ignore player turning it on during map open)
-
     private static bool _wasTurnedOffByMap;
-
+    
     protected override string Description =>
         $"{base.Description}\nFixes locked and stuck controls with map open when Virtual Joystick is enabled.";
-
+    
     private static void ToggleVJ(bool enabled)
     {
         if (PlayerSettings.virtualJoystickEnabled == enabled) return;
@@ -29,25 +28,26 @@ internal class LockedMapControlsWithVJFix(ConfigFile config) : ConfigurableFix(c
         if (SceneSingleton<FlightHud>.i != null)
             SceneSingleton<FlightHud>.i.SetVirtualJoystick(Vector3.zero);
     }
-
+    
     // Transparent prefixes on map open and close actions to trigger setting _wasTurnedOffByMap and ToggleVJ()
     // under the same circumstances as the map will be opened/closed after this
+    
     [HarmonyPatch(typeof(DynamicMap), nameof(DynamicMap.Maximize))]
     [HarmonyPrefix]
     public static void DynamicMapMaximise()
     {
         if (!DynamicMap.AllowedToOpen || DynamicMap.mapMaximized || !PlayerSettings.virtualJoystickEnabled) return;
-
+        
         _wasTurnedOffByMap = true;
         ToggleVJ(false);
     }
-
+    
     [HarmonyPatch(typeof(DynamicMap), nameof(DynamicMap.Minimize))]
     [HarmonyPrefix]
     public static void DynamicMapMinimise()
     {
         if (!DynamicMap.mapMaximized || !_wasTurnedOffByMap) return;
-
+        
         _wasTurnedOffByMap = false;
         ToggleVJ(true);
     }

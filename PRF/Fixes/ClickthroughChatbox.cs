@@ -14,9 +14,9 @@ internal class ClickthroughChatbox(ConfigFile config) : ConfigurableFix(config)
     {
         __instance.messageText.raycastTarget = false;
         __instance.killFeedText.raycastTarget = false;
-
+        
         var image = __instance.messageBackground.GetComponent<Image>();
-
+        
         if (image != null)
             image.raycastTarget = false;
     }

@@ -20,11 +20,11 @@ internal class RestrictedWeaponsAISpawnFix(ConfigFile config) : ConfigurableFix(
             outAvailable.Clear();
             return;
         }
-
+        
         if (allowEmpty || outAvailable.Count != 0) return;
         outAvailable.Add(null);
     }
-
+    
     [HarmonyPatch(typeof(WeaponSelector), nameof(WeaponSelector.PopulateOptions))]
     [HarmonyTranspiler]
     public static IEnumerable<CodeInstruction> CallAvailableWeaponsAllowEmptyTrue(
@@ -41,13 +41,13 @@ internal class RestrictedWeaponsAISpawnFix(ConfigFile config) : ConfigurableFix(
                     ci.Calls(AccessTools.Method(typeof(WeaponChecker),
                         nameof(WeaponChecker.GetAvailableWeaponsNonAlloc))))
             );
-
+        
         if (matcher.IsValid)
         {
             PRF.Logger.LogDebug("Found call on player side.");
             matcher.SetInstructionAndAdvance(new CodeInstruction(OpCodes.Ldc_I4_1));
         }
-
+        
         return matcher.InstructionEnumeration();
     }
 }

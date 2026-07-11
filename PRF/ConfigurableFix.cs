@@ -9,11 +9,11 @@ internal abstract class ConfigurableFix : HarmonyPatch
     private readonly ConfigEntry<bool> _enabled;
     private Harmony? Harmony { get; }
     private bool IsPatched { get; set; }
-
+    
     protected virtual bool DefaultEnabled => true;
-
+    
     protected virtual string Description => $"if true, {GetType().Name} is enabled";
-
+    
     protected ConfigurableFix(ConfigFile config)
     {
         var type = GetType().Name;
@@ -41,15 +41,15 @@ internal abstract class ConfigurableFix : HarmonyPatch
         PRF.Logger.LogDebug($"Patching {type.Name}...");
         Harmony!.CreateClassProcessor(type).Patch();
         PRF.Logger.LogDebug($"Patched {type.Name}!");
-
+        
         IsPatched = true;
     }
-
+    
     private void RemovePatches()
     {
         if (!IsPatched)
             return;
-
+        
         Harmony!.UnpatchSelf();
         IsPatched = false;
     }

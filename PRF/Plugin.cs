@@ -15,7 +15,7 @@ namespace PRF;
 public class PRF : BaseUnityPlugin
 {
     internal new static ManualLogSource Logger { get; private set; } = null!;
-
+    
     internal static List<ConfigurableFix> Fixes { get; } = [];
 
     private void Awake()
@@ -37,15 +37,15 @@ public class PRF : BaseUnityPlugin
                 } &&
                 typeof(ConfigurableFix).IsAssignableFrom(t) &&
                 t.GetCustomAttribute<FixAttribute>() != null);
-
+        
         foreach (var type in fixTypes)
             try
             {
                 var fix = (ConfigurableFix)Activator.CreateInstance(type, Config)!;
                 Fixes.Add(fix);
-
+                
                 var attribute = type.GetCustomAttribute<FixAttribute>();
-
+                
                 Logger.LogInfo(
                     $"Loaded fix: {attribute?.DisplayName ?? type.Name}");
             }
