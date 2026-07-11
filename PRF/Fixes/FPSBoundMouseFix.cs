@@ -401,9 +401,7 @@ internal class FPSBoundMouseFix : ConfigurableFix
     [HarmonyPostfix]
     public static void UpdateStateAddition(Pilot pilot, ref PilotPlayerState __instance)
     {
-        if (!PlayerSettings.virtualJoystickEnabled) return;
-        
-        if (!__instance.player.GetButton("Free Look"))
+        if (PlayerSettings.virtualJoystickEnabled && !__instance.player.GetButton("Free Look"))
         {
             float num = PlayerSettings.virtualJoystickInvertPitch ? -1f : 1f;
             Vector3 a = SceneSingleton<FlightHud>.i.virtualJoystickPos.transform.localPosition;
@@ -421,9 +419,8 @@ internal class FPSBoundMouseFix : ConfigurableFix
             // this _globalJoystickPos gets used in PlayerAxisControls ran in FixedUpdateState to for SetVirtualJoystick
             // The static 2f virtualJoystickCentering multiplier is replaced by GetVirtualJoystickCenteringForce which is _virtualJoystickCenteringForce * 4
             _globalJoystickPos = Vector3.Lerp(a, Vector3.zero, PlayerSettings.virtualJoystickCentering * GetVirtualJoystickCenteringForce() * Time.deltaTime);
-        } else if (_enableCenteringDuringFreelook.Value)
-            _globalJoystickPos = Vector3.Lerp(_globalJoystickPos, Vector3.zero,
-                PlayerSettings.virtualJoystickCentering * GetVirtualJoystickCenteringForce() * Time.deltaTime);
+        } else if (_enableCenteringDuringFreelook.Value || !PlayerSettings.virtualJoystickEnabled) // Account for VJ being turned off via hotkey / LockedMapControlsWithVJFix
+            _globalJoystickPos = Vector3.zero; // No interpolation to zero to emulate instant turn off when toggling VJ, otherwise this falls behind toggling VJ setting virtualJoystickPos to zero
     }
     
     
@@ -472,7 +469,7 @@ internal class FPSBoundMouseFix : ConfigurableFix
                     // Getting _globalJoystickPos from UpdateState instead of joystickPos from this FixedUpdateState
                     // (which'd add another layer of deltaTime based on physics FPS)
                     SceneSingleton<FlightHud>.i.SetVirtualJoystick(_globalJoystickPos);
-                } else if (_enableCenteringDuringFreelook.Value) // Enable centering to continue happen during freelook with config enabled
+                } else if (_enableCenteringDuringFreelook.Value) // Enable centering to continue happening during freelook with config enabled
                     SceneSingleton<FlightHud>.i.SetVirtualJoystick(_globalJoystickPos);
                 if (!DynamicMap.mapMaximized && !RadialMenuMain.IsInUse() && !Leaderboard.IsOpen())
                 {

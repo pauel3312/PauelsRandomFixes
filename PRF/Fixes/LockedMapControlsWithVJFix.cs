@@ -46,7 +46,7 @@ internal class LockedMapControlsWithVJFix(ConfigFile config) : ConfigurableFix(c
     public static void DynamicMapMinimise()
     {
         if (!DynamicMap.mapMaximized || !_wasTurnedOffByMap) return;
-
+        
         _wasTurnedOffByMap = false;
         ToggleVJ(true);
     }
