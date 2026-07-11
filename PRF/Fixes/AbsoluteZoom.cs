@@ -39,6 +39,9 @@ internal class AbsoluteZoom : ConfigurableFix
                 new AcceptableValueRange<float>(0f, 30f)));
     }
     
+    protected override string Description =>
+        $"{base.Description}\n\"Zoom View\" bind will function as an absolute axis for camera.";
+    
     protected override bool DefaultEnabled => false;
     
     public static float GetCockpitSensitivity() => _cockpitSensitivity.Value;

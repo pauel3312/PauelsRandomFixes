@@ -10,6 +10,9 @@ namespace PRF.Fixes;
 // ReSharper disable once InconsistentNaming
 internal class RemoveTagsInTTS(ConfigFile config) : ConfigurableFix(config)
 {
+    protected override string Description =>
+        $"{base.Description}\nPrevents TTS from reading out HTML tags in messages.";
+    
     [HarmonyPatch(nameof(ChatManager.RunTTS))]
     [HarmonyPrefix]
     // ReSharper disable once InconsistentNaming

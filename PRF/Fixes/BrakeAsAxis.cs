@@ -15,6 +15,9 @@ internal class BrakeAsAxis : ConfigurableFix
             "Use negative region of input for the brake axis");
     }
     
+    protected override string Description =>
+        $"{base.Description}\nFixes \"Brake Axis\" bind to function as an analogue brake input.";
+    
     [HarmonyPatch(typeof(PilotPlayerState), nameof(PilotPlayerState.PlayerControls))]
     [HarmonyPostfix]
     public static void PlayerControlsPostfix(PilotPlayerState __instance)

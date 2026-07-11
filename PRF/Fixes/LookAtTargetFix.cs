@@ -10,6 +10,10 @@ namespace PRF.Fixes;
 [HarmonyPatch]
 internal class LookAtTargetFix(ConfigFile config) : ConfigurableFix(config)
 {
+    protected override string Description =>
+        $"{base.Description}\nAllows holding \"Look At Target\" keybind in first person (cockpit) camera"
+        + " to point camera at target, snaps back to center when released.";
+    
     [HarmonyPatch(typeof(CameraCockpitState), nameof(CameraCockpitState.UpdateState))]
     [HarmonyTranspiler]
     public static IEnumerable<CodeInstruction> CockpitLookAtTargetFix(IEnumerable<CodeInstruction> instructions,

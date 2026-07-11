@@ -10,6 +10,9 @@ namespace PRF.Fixes;
 [HarmonyPatch]
 internal class RestrictedWeaponsAISpawnFix(ConfigFile config) : ConfigurableFix(config)
 {
+    protected override string Description =>
+        $"{base.Description}\nFixes broken AI spawns when they have empty hardpoints.";
+    
     [HarmonyPatch(typeof(WeaponChecker), nameof(WeaponChecker.GetAvailableWeaponsNonAlloc))]
     [HarmonyPostfix]
     public static void FixEmptyOutput(Player player, HardpointSet hardpointSet, Airbase airbase, FactionHQ hq,
