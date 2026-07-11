@@ -8,7 +8,7 @@ namespace PRF.Fixes;
 
 [Fix]
 [HarmonyPatch]
-internal class RestrictedWeaponsAISpawnFix(ConfigFile config): ConfigurableFix(config)
+internal class RestrictedWeaponsAISpawnFix(ConfigFile config) : ConfigurableFix(config)
 {
     [HarmonyPatch(typeof(WeaponChecker), nameof(WeaponChecker.GetAvailableWeaponsNonAlloc))]
     [HarmonyPostfix]
@@ -20,10 +20,11 @@ internal class RestrictedWeaponsAISpawnFix(ConfigFile config): ConfigurableFix(c
             outAvailable.Clear();
             return;
         }
+
         if (allowEmpty || outAvailable.Count != 0) return;
         outAvailable.Add(null);
     }
-    
+
     [HarmonyPatch(typeof(WeaponSelector), nameof(WeaponSelector.PopulateOptions))]
     [HarmonyTranspiler]
     public static IEnumerable<CodeInstruction> CallAvailableWeaponsAllowEmptyTrue(
@@ -36,7 +37,9 @@ internal class RestrictedWeaponsAISpawnFix(ConfigFile config): ConfigurableFix(c
                 new CodeMatch(OpCodes.Ldarg_0),
                 new CodeMatch(OpCodes.Ldfld,
                     AccessTools.Field(typeof(WeaponSelector), nameof(WeaponSelector.getCache))),
-                new CodeMatch(ci => ci.Calls(AccessTools.Method(typeof(WeaponChecker), nameof(WeaponChecker.GetAvailableWeaponsNonAlloc))))
+                new CodeMatch(ci =>
+                    ci.Calls(AccessTools.Method(typeof(WeaponChecker),
+                        nameof(WeaponChecker.GetAvailableWeaponsNonAlloc))))
             );
 
         if (matcher.IsValid)
@@ -44,7 +47,7 @@ internal class RestrictedWeaponsAISpawnFix(ConfigFile config): ConfigurableFix(c
             PRF.Logger.LogDebug("Found call on player side.");
             matcher.SetInstructionAndAdvance(new CodeInstruction(OpCodes.Ldc_I4_1));
         }
-        
+
         return matcher.InstructionEnumeration();
     }
 }

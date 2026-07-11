@@ -6,7 +6,7 @@ namespace PRF.Fixes;
 
 [Fix]
 [HarmonyPatch(typeof(MessageUI))]
-internal class ClickthroughChatbox(ConfigFile config): ConfigurableFix(config)
+internal class ClickthroughChatbox(ConfigFile config) : ConfigurableFix(config)
 {
     [HarmonyPatch(nameof(MessageUI.Awake))]
     [HarmonyPostfix]

@@ -4,10 +4,10 @@ using HarmonyLib;
 
 namespace PRF;
 
-internal abstract class ConfigurableFix: HarmonyPatch
+internal abstract class ConfigurableFix : HarmonyPatch
 {
     private readonly ConfigEntry<bool> _enabled;
-    private Harmony? Harmony { get; set; }
+    private Harmony? Harmony { get; }
     private bool IsPatched { get; set; }
 
     protected virtual bool DefaultEnabled => true;
@@ -24,7 +24,7 @@ internal abstract class ConfigurableFix: HarmonyPatch
         if (_enabled.Value)
             ApplyPatches();
     }
-    
+
     private void OnEnabledChanged(object sender, EventArgs e)
     {
         if (_enabled.Value)
@@ -32,7 +32,7 @@ internal abstract class ConfigurableFix: HarmonyPatch
         else
             RemovePatches();
     }
-    
+
     private void ApplyPatches()
     {
         if (IsPatched)

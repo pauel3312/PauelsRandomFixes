@@ -15,8 +15,6 @@ internal class AbsoluteZoom : ConfigurableFix
     private static ConfigEntry<float> _tvSensitivity = null!;
     private static ConfigEntry<bool> _useAbsolute = null!;
     private static ConfigEntry<bool> _useNegative = null!;
-    
-    protected override bool DefaultEnabled => false;
 
     public AbsoluteZoom(ConfigFile config) : base(config)
     {
@@ -40,6 +38,8 @@ internal class AbsoluteZoom : ConfigurableFix
                 "Sensitivity of the default RELATIVE zoom in flyby view. Only works if this is set to relative mode.",
                 new AcceptableValueRange<float>(0f, 30f)));
     }
+
+    protected override bool DefaultEnabled => false;
 
     public static float GetCockpitSensitivity()
     {
@@ -99,7 +99,7 @@ internal class AbsoluteZoom : ConfigurableFix
 
         return matcher.InstructionEnumeration();
     }
-    
+
     [HarmonyPatch(typeof(CameraOrbitState), nameof(CameraOrbitState.Inputs))]
     [HarmonyPostfix]
     public static void AbsoluteZoomInOrbit(CameraOrbitState __instance, ref CameraStateManager cam)
@@ -123,7 +123,7 @@ internal class AbsoluteZoom : ConfigurableFix
                 ),
                 new CodeMatch(ci => ci.opcode == OpCodes.Call || ci.opcode == OpCodes.Callvirt)
             );
-    
+
         if (matcher.IsValid)
         {
             PRF.Logger.LogDebug("Orbit zoom view thing found");
@@ -136,7 +136,7 @@ internal class AbsoluteZoom : ConfigurableFix
             );
             matcher.Insert(new CodeInstruction(OpCodes.Mul));
         }
-    
+
         return matcher.InstructionEnumeration();
     }
 
@@ -149,7 +149,7 @@ internal class AbsoluteZoom : ConfigurableFix
         if (_useNegative.Value) input = (input + 1) / 2;
         cam.mainCamera.fieldOfView = Mathf.Lerp(5.0f, 80.0f, input); // This is hardcoded in the game code smh...
     }
-    
+
     [HarmonyPatch(typeof(CameraTVState), nameof(CameraTVState.UpdateState))]
     [HarmonyTranspiler]
     public static IEnumerable<CodeInstruction> TVFovFix(IEnumerable<CodeInstruction> instructions)
@@ -172,8 +172,8 @@ internal class AbsoluteZoom : ConfigurableFix
                 new CodeInstruction(
                     OpCodes.Call,
                     AccessTools.Method(typeof(AbsoluteZoom), nameof(GetTVSensitivity))
-                    )
-                );
+                )
+            );
             matcher.Insert(new CodeInstruction(OpCodes.Mul));
         }
 
