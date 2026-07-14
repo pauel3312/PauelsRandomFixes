@@ -11,7 +11,7 @@ internal class BrakeAsAxis : ConfigurableFix
     
     public BrakeAsAxis(ConfigFile config) : base(config)
     {
-        _useBrakesNegativeRegion = config.Bind(GetType().Name, "UseBrakesNegativeRegion", false,
+        _useBrakesNegativeRegion = config.Bind(GetType().Name, "UseBrakesNegativeRegion", true,
             "Use negative region of input for the brake axis");
     }
     
