@@ -389,9 +389,11 @@ internal class FPSBoundMouseFix : ConfigurableFix
         {
             var num = PlayerSettings.virtualJoystickInvertPitch ? -1f : 1f;
             var a = SceneSingleton<FlightHud>.i.virtualJoystickPos.transform.localPosition;
+            
             // Extra _virtualJoystickSensitivityX and Y multipliers, individually applied to each GetAxis, instead of deltaTime and flat 30f
             // Stacks with vanilla virtualJoystickSensitivity setting and gives more control to support wider ranges of sensitivity
             // And enables sensitivity control per axis
+            
             if (CameraStateManager.cameraMode == CameraMode.cockpit)
             {
                 var pan = GameManager.playerInput.GetAxis("Pan View") * GetVirtualJoystickSensitivityX();
@@ -403,6 +405,7 @@ internal class FPSBoundMouseFix : ConfigurableFix
             
             // this _globalJoystickPos gets used in PlayerAxisControls ran in FixedUpdateState to for SetVirtualJoystick
             // The static 2f virtualJoystickCentering multiplier is replaced by GetVirtualJoystickCenteringForce which is _virtualJoystickCenteringForce * 4
+            
             _globalJoystickPos = Vector3.Lerp(a, Vector3.zero,
                 PlayerSettings.virtualJoystickCentering * GetVirtualJoystickCenteringForce() * Time.deltaTime);
         }
@@ -423,7 +426,7 @@ internal class FPSBoundMouseFix : ConfigurableFix
     {
         if (__instance.pilot.aircraft.cockpit.IsDetached())
             return false;
-        // Moved to UpdateState
+        // Moved to UpdateState:
         // float num = PlayerSettings.virtualJoystickInvertPitch ? -1f : 1f;
         if (PlayerSettings.virtualJoystickEnabled && (DynamicMap.mapMaximized || RadialMenuMain.IsInUse()))
         {
@@ -447,6 +450,7 @@ internal class FPSBoundMouseFix : ConfigurableFix
                 if (!SceneSingleton<FlightHud>.i.virtualJoystickPos.gameObject.activeSelf)
                     SceneSingleton<FlightHud>.i.virtualJoystickPos.gameObject.SetActive(true);
                 if (!__instance.player.GetButton("Free Look"))
+                    
                     // Moved to UpdateState, original code:
                     /*
                     Vector3 a = SceneSingleton<FlightHud>.i.virtualJoystickPos.transform.localPosition;
@@ -458,6 +462,7 @@ internal class FPSBoundMouseFix : ConfigurableFix
                     */
                     // Getting _globalJoystickPos from UpdateState instead of joystickPos from this FixedUpdateState
                     // (which'd add another layer of deltaTime based on physics FPS)
+                
                     SceneSingleton<FlightHud>.i.SetVirtualJoystick(_globalJoystickPos);
                 else if
                     (_enableCenteringDuringFreelook

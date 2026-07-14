@@ -12,7 +12,7 @@ internal abstract class ConfigurableFix : HarmonyPatch
     
     protected virtual bool DefaultEnabled => true;
     
-    protected virtual string Description => $"if true, {GetType().Name} is enabled";
+    protected virtual string Description => $"If true, {GetType().Name} is enabled.";
     
     protected ConfigurableFix(ConfigFile config)
     {

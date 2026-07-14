@@ -8,6 +8,9 @@ namespace PRF.Fixes;
 [HarmonyPatch(typeof(MessageUI))]
 internal class ClickthroughChatbox(ConfigFile config) : ConfigurableFix(config)
 {
+    protected override string Description =>
+        $"{base.Description}\nFixes being able to click through Kill Feed / Chat to interact with covered up UI elements.";
+    
     [HarmonyPatch(nameof(MessageUI.Awake))]
     [HarmonyPostfix]
     private static void Postfix(MessageUI __instance)

@@ -16,6 +16,10 @@ internal class ThrottleRelativeVelocity : ConfigurableFix
             "Sensitivity of the relative throttle input.");
     }
     
+    protected override string Description =>
+        $"{base.Description}\nFixes \"Throttle Axis\" bind to function as analogue input for relative throttle up/down"
+        + " inputs. Not relevant if you don't have Relative Throttle on (i.e. when using a physical throttle).";
+    
     [HarmonyPatch(typeof(PilotPlayerState), nameof(PilotPlayerState.PlayerThrottleAxis1Controls))]
     [HarmonyPrefix]
     public static bool ThrottleAxis1ControlsReplacer(PilotPlayerState __instance)

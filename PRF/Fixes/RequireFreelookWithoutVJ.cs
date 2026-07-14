@@ -15,7 +15,7 @@ internal class RequireFreelookWithoutVJ(ConfigFile config) : ConfigurableFix(con
     protected override bool DefaultEnabled => false;
     
     protected override string Description =>
-        $"{base.Description}\nEnables needing to hold down freelook button to activate freelook"
+        $"{base.Description}\nEnables needing to hold down freelook button to activate freelook,"
         + " even when Virtual Joystick is disabled (releasing freelook snaps back to center).";
     
     [HarmonyPatch(typeof(CameraCockpitState), nameof(CameraCockpitState.UpdateState))]
@@ -39,11 +39,11 @@ internal class RequireFreelookWithoutVJ(ConfigFile config) : ConfigurableFix(con
             return matcher.InstructionEnumeration();
         
         var skipOperand = (Label)matcher.Instruction.operand;
-        var playerInput = AccessTools.Field(typeof(GameManager), nameof(GameManager.playerInput));
-        var getButton = AccessTools.Method(typeof(Player), nameof(Player.GetButton), new[] { typeof(string) });
+        var playerInputField = AccessTools.Field(typeof(GameManager), nameof(GameManager.playerInput));
+        var getButton = AccessTools.Method(typeof(Player), nameof(Player.GetButton), [typeof(string)]);
         
         matcher.Advance(1);
-        matcher.InsertAndAdvance(new CodeInstruction(OpCodes.Ldsfld, playerInput));
+        matcher.InsertAndAdvance(new CodeInstruction(OpCodes.Ldsfld, playerInputField));
         matcher.InsertAndAdvance(new CodeInstruction(OpCodes.Ldstr, "Free Look"));
         matcher.InsertAndAdvance(new CodeInstruction(OpCodes.Callvirt, getButton));
         matcher.InsertAndAdvance(new CodeInstruction(OpCodes.Brfalse_S, skipOperand));
