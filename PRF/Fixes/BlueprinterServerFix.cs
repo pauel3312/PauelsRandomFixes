@@ -4,11 +4,10 @@ using System.Collections.Generic;
 using System.Reflection;
 using BepInEx.Configuration;
 using HarmonyLib;
+using JetBrains.Annotations;
 using Mirage;
 using UnityEngine;
 using UnityEngine.Rendering;
-
-// ReSharper disable UnusedMember.Local
 
 namespace PRF.Fixes;
 
@@ -23,9 +22,11 @@ internal class BlueprinterServerFix(ConfigFile config) : ConfigurableFix(config)
     
     // Prepare + TargetMethod to check whether Blueprinter even exists
     [HarmonyPrepare]
+    [UsedImplicitly]
     private static bool Prepare() => AccessTools.TypeByName("Blueprinter.PrefabHashAssigner") != null;
     
     [HarmonyTargetMethod]
+    [UsedImplicitly]
     private static MethodBase? TargetMethod()
     {
         var type = AccessTools.TypeByName("Blueprinter.PrefabHashAssigner");
@@ -36,6 +37,7 @@ internal class BlueprinterServerFix(ConfigFile config) : ConfigurableFix(config)
     }
     
     [HarmonyPostfix]
+    [UsedImplicitly]
     // ReSharper disable once InconsistentNaming
     private static void AssignFromBundlesPostfix(object __0)
     {
