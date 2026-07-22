@@ -22,7 +22,7 @@ internal sealed class GunSelfDamageFix(ConfigFile config) : ConfigurableFix(conf
     
     private static readonly MethodInfo PhysicsLinecast =
         AccessTools.Method(typeof(Physics), nameof(Physics.Linecast),
-            new[] { typeof(Vector3), typeof(Vector3), typeof(RaycastHit).MakeByRefType(), typeof(int) })
+            [typeof(Vector3), typeof(Vector3), typeof(RaycastHit).MakeByRefType(), typeof(int)])
         ?? throw new MissingMethodException("Could not find the required Physics.Linecast overload.");
     
     private static readonly MethodInfo FilteredLinecast =
