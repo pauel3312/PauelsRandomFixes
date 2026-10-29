@@ -35,12 +35,6 @@ to open by default).
 > <br><br>Client only, on by default.
 ---
 
-#### DesyncedAirbaseFactionBuildingsFix
-> Fixes client visual mismatch where some buildings in airbases can show as the wrong faction, e.g. when joining you 
-> see a bunch of hostile buildings in an otherwise friendly airbase.
-> <br><br>Client only, on by default
----
-
 #### DisableVerticalCameraInCockpitFix
 
 > Prevents cockpit camera from moving vertically with vertical camera movement keys ("Move Vertical",
@@ -78,7 +72,13 @@ to open by default).
 > Joystick. These stack with vanilla game settings, and allow for additional fine control.<br>
 > Also includes an option to allow Centering Force to keep acting on
 > Virtual Joystick when using Free Look (normally in vanilla, when holding Free Look your last Virtual Joystick state is
-> frozen).
+> frozen).<br><br>
+> Free look includes an opt-in config "Cockpit Freelook Zoom Scaling" (affects both gamepad and mouse input when 
+> controlling free look in cockpit camera) that allows you to scale free look sensitivity based on zoom level. Your 
+> player setting default zoom level or further out is unchanged, but if you start zooming in, if you enable this config 
+> your sensitivity is proportionately reduced to account for zoom. This is similar to how most FPS games handle scopes, 
+> and prevents vanilla's way too high sensitivity when very zoomed in. Set to 0 = disabled (so like vanilla), 1 = 
+> proportional scaling (2x more zoomed in = 2x lower sens), <1 is less and >1 is more effect based on zoom level. 
 > <br><br>Client only, on by default.
 ---
 
@@ -179,21 +179,18 @@ to open by default).
 > <br><br>Host only, on by default.
 ---
 
-#### ServerBrowserFix
-> Fixes dedicated servers disappearing from server browser list when steam returns no dedicated servers. This happens 
-> when the query gets rate limited, as every filter change (other than search by name) sends a new query for every 
-> single server, and the game also throws out the entire list on such a refresh so when no dedicated servers are 
-> returned (eNoServersListedOnMasterServer response), there'll be none in the list.<br><br>
-> This fix makes all filters act on the local list without sending queries every time, and when a refresh returns no 
-> entries, it just keeps showing the existing list it already had.
+#### TailHookGuidanceFix
+> When enabled, displays guidance when a tail hook is equipped and landing gear is extended (while not on ground) to 
+> show info on what conditions aren't met to deploy tail hook and what to do to meet them, as vanilla's criteria can 
+> be a bit confusing, leaving one to wonder why it didn't deploy. The guidance messages are sticky always bottom in 
+> the reports window.<br><br>(Vanilla's criteria to deploy are between 30m and 120m radar altitude, below 100m/s | 
+> 360km/h, and while descending/negative vertical speed - the above 30m and while descending parts are easily 
+> overlooked causing confusion. Criteria for retracting once extended is strictly speed, altitude no longer matters.)
 > <br><br>Client only, on by default.
 ---
 
-#### TailhookOnLandingGearFix
-> When enabled, instead of tail hook deciding on its own when to deploy based on speed, it simply ties its state to 
-> landing gear. If landing gear is retracting or retracted, tail hook retracts, and if landing gear is deploying or 
-> deployed, tail hook deploys. There's a small condition where if it's not deployed yet and you're on the ground, it 
-> won't deploy, this is so that when you initially spawn it won't come out (as the landing gear is already down then).
+#### TargetCamZoomFix
+> Prevents the target camera from zooming out while the map is maximised, and allows adjusting its zoom in speed.
 > <br><br>Client only, on by default.
 ---
 
@@ -221,7 +218,14 @@ to open by default).
 > from immediately moving into activating afterburner or airbrake, holding throttle until it's held sufficiently long 
 > (configurable duration). Releasing throttle input and pressing input towards a detent again immediately allows crossing 
 > it too. This helps relative input users (especially on binary input controls like KB/M) to set a throttle as low/high 
-> as possible but not quite activating airbrake/afterburner, without overshooting it.
+> as possible but not quite activating airbrake/afterburner, without overshooting it.<br><br>
+> Relative throttle's sensitivity can be configured, the default 1.0 equals vanilla speed. This also includes vanilla's 
+> quirky behaviour where it speeds up depending on use throttle axis negative region being enabled or not, as vanilla's 
+> throttle traversal rate is 1 unit per second, so without negative region 0-1 (0 to 100%) takes 1s, but with negative 
+> region in use it remaps -1 to 1 to 0-1 halving traversal rate to 0.5/s so 0-1 (0 to 100%) now takes 2s. This behaviour 
+> is kept here for consistency, so default speed matches vanilla and toggling vanilla's negative region off doubles 
+> traversal speed (but without reintroducing the annoying part where relative throttle can enter this negative region 
+> and get stuck there).
 > <br><br>Client only, on by default.
 ---
 
@@ -239,7 +243,7 @@ to open by default).
 > <br>Also fixes an issue with vehicle depots not being removed from a faction's depot list when they no longer exist, 
 > as otherwise currently such a null depot entry causes FactionHQ.DeployUnits() to run into an NRE as when it calls 
 > SortDepots() there's no null check. That causes that faction's unit spawns to stop working.
-> <br><br>Server only, on by default.
+> <br><br>Host only, on by default.
 ---
 
 #### WarheadDesyncFix
@@ -250,5 +254,10 @@ to open by default).
 > stripped upon spawn.
 > The fix works by preventing nukes from being able to be placed in disabled warhead storages to begin with, so they're 
 > not put in inaccessible places (where not only would clients erroneously see them as accessible, they'd be unusable 
-> regardless). Those warheads are instead redistributed to the next valid, accessible storage nearby.
+> regardless). Those warheads are instead redistributed to the next valid, accessible storage nearby.<br><br>
+> Also de-prioritises putting warheads into airbases that don't have at least one funtional non-helipad hangar, 
+> otherwise an airbase with valid warhead storage can still receive nukes which'll be inaccessible (as you either 
+> can't spawn at them at all, or only as helicopter). If no such better airbase target exists at all, it falls back to 
+> being able to place them at such bases (so the nuke doesn't just disappear). This also doesn't apply to intentional 
+> player ferried warheads, only to freshly produced ones.
 > <br><br>Host only, on by default.
