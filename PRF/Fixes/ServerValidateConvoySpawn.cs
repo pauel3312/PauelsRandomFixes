@@ -8,7 +8,7 @@ namespace PRF.Fixes;
 [HarmonyPatch(typeof(Player))]
 internal class ServerValidateConvoySpawn
 {
-    [HarmonyPatch(nameof(Player.UserCode_CmdPurchaseConvoy_\u002D772415385))]
+    [HarmonyPatch("UserCode_CmdPurchaseConvoy_\u002D772415385")]
     [HarmonyPrefix]
     public static bool Prefix(Player __instance, int convoyIndex)
     {
