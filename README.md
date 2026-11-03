@@ -158,6 +158,13 @@ to open by default).
 > <br><br>Client only, off by default.
 ---
 
+#### MissionRunnerInitialiseFix
+> Fixes an issue on client preventing Mission Runner from initialising if a unit is destroyed at the wrong timing around 
+> join. Symptoms of this issue would be no objectives visible on map/HUD, no objectives tab in map side panel, console 
+> repeatedly spamming "Mission Runner was null", and usually a rejoin would fix it.
+> <br><br>Client only, on by default.
+---
+
 #### RemoveTagsInTTS
 
 > Prevents TTS from reading out HTML tags in messages.
